@@ -1,4 +1,4 @@
-name: indi-core
+name: alt-indi-core
 
 on:
   workflow_dispatch:
