@@ -26,10 +26,7 @@ jobs:
           path: 'indi'
       - name: Install build dependencies
         run: |
-          MISSING_DEPS=$(dpkg-checkbuilddeps indi/debian/control 2>&1 | sed -e 's/^.*Unmet build dependencies: //' -e 's/([^)]*)//g')
-          if [ ! -z "$MISSING_DEPS" ]; then
-            apt-get install -q -y $MISSING_DEPS
-          fi
+          apt-get build-dep -y ./indi
       - name: Build INDI Core Packages
         run: |
           indi/scripts/indi-core-deb.sh
