@@ -1,0 +1,26 @@
+name: indi-core
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    strategy:
+      fail-fast: false
+
+    container:
+      image: debian:trixie-slim
+
+    steps:
+      - name: Get INDI Sources
+        uses: actions/checkout@v6
+        with:
+          repository: 'indilib/indi'
+          ref: refs/tags/v2.2.2.1
+          path: 'indi'
+
+      - name: Build INDI Core Packages
+        run: |
+          indi/scripts/indi-core-deb.sh
