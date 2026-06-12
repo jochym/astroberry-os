@@ -29,6 +29,6 @@ jobs:
       - name: Install Core and Build Libs
         run: |
           apt-get update
-          ls -l ./pre-built-core/
-          apt install -y ./pre-built-core/*.deb
+          ls -lR ./pre-built-core/
+          apt install -y ./pre-built-core/build/*.deb
           # ... budowanie libs ...
