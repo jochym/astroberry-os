@@ -111,7 +111,7 @@ jobs:
                 echo "-> Budowanie i instalacja lokalnej biblioteki: $lib"
                 # apt-get build-dep debian/$lib/control
                 ./scripts/indi-3rdparty-deb.sh $lib
-                apt-get install -y build/${lib}*.deb
+                apt-get install -y build/$lib*.deb
               done
             fi
 
