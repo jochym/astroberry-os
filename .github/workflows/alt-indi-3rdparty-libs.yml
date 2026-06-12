@@ -122,7 +122,22 @@ jobs:
             fi
 
             echo "Zależności dla $DRIVER_NAME zostały pomyślnie rozwiązane. Można przejść do kompilacji drivera."
-            ./scripts/indi-3rdparty-deb.sh $DRIVER_NAME
+            echo "Rozpoczynam budowanie drivera: $DRIVER_NAME"
+            
+            # URUCHOMIENIE BUDOWANIA W ELEGANCKIM BLOKU WARUNKOWYM
+            # Zastąp poniższą komendę (./build_driver.sh) swoim faktycznym skryptem budującym
+            if ./scripts/indi-3rdparty-deb.sh "$DRIVER_NAME"; then
+              echo "::notice:: Sukces: Driver $DRIVER_NAME został pomyślnie zbudowany."
+            else
+              # Ta sekcja wykona się TYLKO, gdy skrypt budujący zwróci błąd (exit code != 0)
+              echo "::error:: Błąd kompilacji: Budowanie drivera [$DRIVER_NAME] nie powiodło się!"
+              echo "Pomijam błąd i przechodzę do następnego drivera."
+              
+              # Przejście do kolejnego obrotu pętli for (kolejnego drivera)
+              continue
+            fi
+
+            echo "Zakończono procedurę dla: $DRIVER_NAME"
           done            
       - name: Upload Compiled Debian Packages
         uses: actions/upload-artifact@v4
