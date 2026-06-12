@@ -45,11 +45,12 @@ jobs:
           LIBS_SRC_DIR="./"
 
           # Pętla po wszystkich plikach control dla driverów
-          for control_file in ./debian/indi-*/control ; do
+          for driver in indi-* ; do
+            control_file=debian/$driver/control
             [ -e "$control_file" ] || continue
             
             # Wyciągamy nazwę drivera ze ścieżki pliku control
-            DRIVER_NAME=$(basename $(dirname $(dirname "$control_file")))
+            DRIVER_NAME=$driver
             echo "========================================================="
             echo "Analizuję driver: $DRIVER_NAME"
             echo "========================================================="
