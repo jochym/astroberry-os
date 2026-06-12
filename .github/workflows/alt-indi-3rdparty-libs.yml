@@ -7,7 +7,16 @@ jobs:
     runs-on: ubuntu-24.04-arm
     container: debian:trixie-slim
     steps:
-      - uses: actions/checkout@v4
+      - name: Install git and dependencies
+        run: |
+          apt-get update
+          apt-get install -q -y git ca-certificates build-essential dpkg-dev git ca-certificates
+      - name: Get INDI Sources
+        uses: actions/checkout@v6
+        with:
+          repository: 'indilib/indi-3rdparty'
+          ref: refs/tags/v2.2.2.1
+          path: '3rdparty'
 
       - name: Download Artifact from Core Workflow
         uses: dawidd6/action-download-artifact@v9
@@ -26,9 +35,12 @@ jobs:
           # Ścieżka docelowa dla plików .deb
           path: ./pre-built-core
 
+
       - name: Install Core and Build Libs
         run: |
-          apt-get update
-          ls -lR ./pre-built-core/
-          apt install -y ./pre-built-core/build/*.deb
-          # ... budowanie libs ...
+          apt-get install -y ./pre-built-core/build/*.deb
+          cd 3rdparty
+          for drv in indi-* ; do
+            apt-get build-dep -y debian/$drv/control
+          done
+            
