@@ -17,20 +17,18 @@ jobs:
       - name: Install git and dependencies
         run: |
           apt-get update
-          apt-get install -y git ca-certificates build-essential dpkg-dev git ca-certificates
+          apt-get install -q -y git ca-certificates build-essential dpkg-dev git ca-certificates
       - name: Get INDI Sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi'
           ref: refs/tags/v2.2.2
           path: 'indi'
-
       - name: Install build dependencies
         run: |
           MISSING_DEPS=$(dpkg-checkbuilddeps indi/debian/control 2>&1 | sed -e 's/^.*Unmet build dependencies: //' -e 's/([^)]*)//g')
-          
           if [ ! -z "$MISSING_DEPS" ]; then
-            apt-get install -y $MISSING_DEPS
+            apt-get install -q -y $MISSING_DEPS
           fi
       - name: Build INDI Core Packages
         run: |
