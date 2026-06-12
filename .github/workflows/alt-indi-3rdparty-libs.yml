@@ -15,7 +15,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           
           # Nazwa głównego potoku (wartość z pola 'name:' w pliku core)
-          workflow: alt-indi-core 
+          workflow: alt-indi-core.yml
           
           # Nazwa artefaktu podana przy uploadzie
           name: indi-compiled-packages
