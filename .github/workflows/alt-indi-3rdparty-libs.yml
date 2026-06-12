@@ -37,10 +37,94 @@ jobs:
 
 
       - name: Install Core and Build Libs
+        run: apt-get install -y ./pre-built-core/build/*.deb
+      - name: Categorize and Resolve Driver Dependencies
         run: |
-          apt-get install -y ./pre-built-core/build/*.deb
           cd 3rdparty
-          for drv in indi-* ; do
-            apt-get build-dep -y debian/$drv/control
-          done
+          # Ścieżka do katalogu, w którym znajdują się źródła bibliotek (dostosuj jeśli podkatalogi są gdzie indziej)
+          LIBS_SRC_DIR="./"
+
+          # Pętla po wszystkich plikach control dla driverów
+          for control_file in ./debian/indi-*/control ; do
+            [ -e "$control_file" ] || continue
             
+            # Wyciągamy nazwę drivera ze ścieżki pliku control
+            DRIVER_NAME=$(basename $(dirname $(dirname "$control_file")))
+            echo "========================================================="
+            echo "Analizuję driver: $DRIVER_NAME"
+            echo "========================================================="
+            
+            # Pobranie surowej listy brakujących pakietów
+            RAW_DEPS=$(dpkg-checkbuilddeps "$control_file" 2>&1 | \
+                        sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
+                        sed -e 's/([^)]*)//g' -e 's/,//g')
+            
+            # Jeśli brak niespełnionych zależności lub wystąpił inny błąd strukturalny
+            if [ -z "$RAW_DEPS" ] || [[ "$RAW_DEPS" == *"błąd"* || "$RAW_DEPS" == *"error"* ]]; then
+              echo "Brak brakujących zależności w repozytoriach dla $DRIVER_NAME lub plik jest prawidłowy."
+              continue
+            fi
+
+            DEBS_TO_INSTALL=""
+            LIBS_TO_BUILD=""
+            FATAL_ERROR=0
+            MISSING_FATAL_PACKAGES=""
+
+            # Przetwarzamy każdy brakujący pakiet z osobna
+            for package in $RAW_DEPS; do
+              
+              # KATEGORIA 1: Sprawdzenie czy pakiet istnieje w repozytorium Debiana
+              if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
+                DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
+                
+              # KATEGORIA 2: Jeśli nie ma w Debianie, sprawdź czy istnieje lokalny katalog źródłowy
+              elif [ -d "${LIBS_SRC_DIR}/${package}" ]; then
+                LIBS_TO_BUILD="$LIBS_TO_BUILD $package"
+                
+              # KATEGORIA 3: Brak w repozytorium i brak w źródłach (BŁĄD KRYTYCZNY dla tego drivera)
+              else
+                FATAL_ERROR=1
+                MISSING_FATAL_PACKAGES="$MISSING_FATAL_PACKAGES $package"
+              fi
+            done
+
+            # Obsługa wyników klasyfikacji
+            if [ "$FATAL_ERROR" -eq 1 ]; then
+              echo "::error:: Nie można zbudować drivera [$DRIVER_NAME]! Brakujące pakiety widmo (brak w Debianie i brak źródeł): $MISSING_FATAL_PACKAGES"
+              echo "Pomijam budowanie drivera [$DRIVER_NAME] ze względu na niespełnione zależności."
+              continue
+            fi
+
+            # Wywrotka powłoki jeśli wykryto biblioteki do zbudowania – tutaj musisz wpiąć swój mechanizm
+            if [ ! -z "$LIBS_TO_BUILD" ]; then
+              echo "Wykryto lokalne biblioteki do zbudowania dla $DRIVER_NAME: $LIBS_TO_BUILD"
+              for lib in $LIBS_TO_BUILD; do
+                echo "-> Budowanie i instalacja lokalnej biblioteki: $lib"
+                # apt-get build-dep debian/$lib/control
+                ./scripts/indi-3rdparty-deb.sh $lib
+                apt-get install -y build/${lib}*.deb
+              done
+            fi
+
+            # Instalacja pakietów standardowych z dystrybucji Debiana
+            if [ ! -z "$DEBS_TO_INSTALL" ]; then
+              echo "Instalacja pakietów z repozytorium Debiana dla $DRIVER_NAME: $DEBS_TO_INSTALL"
+              apt-get install -y $DEBS_TO_INSTALL
+            fi
+
+            echo "Zależności dla $DRIVER_NAME zostały pomyślnie rozwiązane. Można przejść do kompilacji drivera."
+            ./scripts/indi-3rdparty-deb.sh $DRIVER_NAME
+          done            
+      - name: Upload Compiled Debian Packages
+        uses: actions/upload-artifact@v4
+        with:
+          # Nazwa, pod jaką artefakt będzie widoczny w zakładce Actions
+          name: 3rdparty-compiled-packages
+          # Ścieżka do plików. Wyszuka wszystkie pliki .deb w katalogu głównym 
+          # oraz w podkatalogach (jeśli tam je przenosisz)
+          path: |
+            build/*.deb
+          # Opcjonalnie: czas przechowywania w dniach (nadpisuje domyślne 90 dni)
+          retention-days: 14
+          # Gwarantuje, że błąd zapisu artefaktu przerwie potok i zasygnalizuje problem
+          if-no-files-found: error
