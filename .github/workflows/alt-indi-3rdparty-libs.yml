@@ -1,0 +1,33 @@
+name: Build Libs Separately
+on:
+  workflow_dispatch:
+
+jobs:
+  build-libs:
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie-slim
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Artifact from Core Workflow
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Nazwa głównego potoku (wartość z pola 'name:' w pliku core)
+          workflow: alt-indi-core 
+          
+          # Nazwa artefaktu podana przy uploadzie
+          name: indi-compiled-packages
+          
+          # Pobierz tylko jeśli potok źródłowy zakończył się sukcesem
+          workflow_conclusion: success
+          
+          # Ścieżka docelowa dla plików .deb
+          path: ./pre-built-core
+
+      - name: Install Core and Build Libs
+        run: |
+          apt-get update
+          apt-get install -y ./pre-built-core/*.deb
+          # ... budowanie libs ...
