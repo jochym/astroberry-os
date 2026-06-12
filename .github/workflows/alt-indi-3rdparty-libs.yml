@@ -60,12 +60,20 @@ jobs:
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
             
-            # Jeśli brak niespełnionych zależności lub wystąpił inny błąd strukturalny
-            if [ -z "$RAW_DEPS" ] || [[ "$RAW_DEPS" == *"błąd"* || "$RAW_DEPS" == *"error"* ]]; then
-              echo "Brak brakujących zależności w repozytoriach dla $DRIVER_NAME lub plik jest prawidłowy."
+            # Jeśli brak niespełnionych zależności
+            if [ -z "$RAW_DEPS" ]; then
+              echo "Brak brakujących zależności dla $DRIVER_NAME."
               continue
             fi
 
+            # Bezpieczne sprawdzenie obecności słów "błąd" lub "error" w POSIX sh
+            case "$RAW_DEPS" in
+              *błąd*|*error*|*Error*|*Błąd*)
+                echo "Wykryto błąd krytyczny narzędzia dpkg (np. brak pliku control): $RAW_DEPS"
+                continue
+                ;;
+            esac
+            
             DEBS_TO_INSTALL=""
             LIBS_TO_BUILD=""
             FATAL_ERROR=0
