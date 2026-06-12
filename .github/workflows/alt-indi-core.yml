@@ -30,3 +30,17 @@ jobs:
       - name: Build INDI Core Packages
         run: |
           indi/scripts/indi-core-deb.sh
+      - name: Upload Compiled Debian Packages
+        uses: actions/upload-artifact@v4
+        with:
+          # Nazwa, pod jaką artefakt będzie widoczny w zakładce Actions
+          name: indi-compiled-packages
+          # Ścieżka do plików. Wyszuka wszystkie pliki .deb w katalogu głównym 
+          # oraz w podkatalogach (jeśli tam je przenosisz)
+          path: |
+            *.deb
+            **/*.deb
+          # Opcjonalnie: czas przechowywania w dniach (nadpisuje domyślne 90 dni)
+          retention-days: 14
+          # Gwarantuje, że błąd zapisu artefaktu przerwie potok i zasygnalizuje problem
+          if-no-files-found: error
