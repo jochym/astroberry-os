@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Install git and dependencies
         run: |
-          apt-get update
+          apt-get update -qq
           apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev git ca-certificates
 
       - name: Detect last release version
