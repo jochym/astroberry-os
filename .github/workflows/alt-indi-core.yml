@@ -17,7 +17,7 @@ jobs:
       - name: Install git and dependencies
         run: |
           apt-get update
-          apt-get install -q -y git ca-certificates curl jq build-essential dpkg-dev git ca-certificates
+          apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev git ca-certificates
 
       - name: Detect last release version
         run: |
@@ -41,7 +41,7 @@ jobs:
           path: 'indi'
       - name: Install build dependencies
         run: |
-          apt-get build-dep -y ./indi
+          apt-get build-dep -qqy ./indi
       - name: Build INDI Core Packages
         run: |
           indi/scripts/indi-core-deb.sh
