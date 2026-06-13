@@ -1,4 +1,4 @@
-name: alt-indi-core
+name: Build core INDI Libs and Drivers
 
 on:
   workflow_dispatch:
