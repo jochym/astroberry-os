@@ -60,11 +60,6 @@ jobs:
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
             
-            # Jeśli brak niespełnionych zależności
-            if [ -z "$RAW_DEPS" ]; then
-              echo "Brak brakujących zależności dla $DRIVER_NAME."
-              continue
-            fi
 
             # Bezpieczne sprawdzenie obecności słów "błąd" lub "error" w POSIX sh
             case "$RAW_DEPS" in
@@ -166,7 +161,7 @@ jobs:
           # Ścieżka do plików. Wyszuka wszystkie pliki .deb w katalogu głównym 
           # oraz w podkatalogach (jeśli tam je przenosisz)
           path: |
-            build/*.deb
+            3rdparty/build/*.deb
           # Opcjonalnie: czas przechowywania w dniach (nadpisuje domyślne 90 dni)
           retention-days: 14
           # Gwarantuje, że błąd zapisu artefaktu przerwie potok i zasygnalizuje problem
