@@ -107,7 +107,7 @@ jobs:
           # Zbiorcza instalacja wszystkich pomyślnie zbudowanych bibliotek
           if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
             echo "Installing all newly built libraries..."
-            apt-get install -y ./build/lib*.deb
+            apt-get install -y -o Dpkg::Options::="--force-overwrite" ./build/lib*.deb
           else
             echo "No libraries were built to be installed."
           fi
