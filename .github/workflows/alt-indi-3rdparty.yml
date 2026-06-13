@@ -59,10 +59,6 @@ jobs:
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
             
-            if [ -z "$RAW_DEPS" ]; then
-              echo "No missing dependencies for $DRIVER_NAME."
-              continue
-            fi
 
             # POSIX-compliant error handling for dpkg tool failures
             case "$RAW_DEPS" in
