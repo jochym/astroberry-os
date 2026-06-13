@@ -10,7 +10,7 @@ jobs:
       - name: Install git and dependencies
         run: |
           apt-get update
-          apt-get install -q -y git ca-certificates build-essential dpkg-dev
+          apt-get install -q -y git ca-certificates build-essential curl jq dpkg-dev
       - name: Detect last release version
         run: |
           # Automatically detect the latest version from upstream releases
