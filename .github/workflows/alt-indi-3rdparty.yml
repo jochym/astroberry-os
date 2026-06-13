@@ -32,119 +32,160 @@ jobs:
         run: |
           apt-get install -y ./pre-built-core/build/*.deb
 
-      - name: Categorize, Resolve and Build Drivers
+      - name: Build and Install All Libraries
         run: |
           cd 3rdparty
           
-          # Initialize the error report file
+          # Inicjalizacja pliku raportu
           REPORT_FILE="failed_builds_report.md"
           echo "# INDI Build Failure Report" > $REPORT_FILE
           echo "Generated on: $(date)" >> $REPORT_FILE
           echo -e "\n| Component Type | Component Name | Failure Reason |" >> $REPORT_FILE
           echo "| --- | --- | --- |" >> $REPORT_FILE
 
-          LIBS_SRC_DIR="./"
+          echo "========================================================="
+          echo "Phase 1: Building all libraries (lib*)"
+          echo "========================================================="
+
+          for lib in lib* ; do
+            control_file=debian/$lib/control
+            [ -e "$control_file" ] || [ -e "$lib/debian/control" ] || continue
+            
+            echo "---------------------------------------------------------"
+            echo "Building library: $lib"
+            echo "---------------------------------------------------------"
+
+            # Pobranie brakujących zależności dla biblioteki
+            RAW_DEPS=$(dpkg-checkbuilddeps "$control_file" 2>&1 | \
+                        sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
+                        sed -e 's/([^)]*)//g' -e 's/,//g')
+
+            if [ ! -z "$RAW_DEPS" ]; then
+              case "$RAW_DEPS" in
+                *błąd*|*error*|*Error*|*Błąd*)
+                  echo "::error:: Critical dpkg error for library $lib: $RAW_DEPS"
+                  echo "| Library | $lib | Corrupted control file or dpkg error |" >> $REPORT_FILE
+                  continue
+                  ;;
+              esac
+
+              DEBS_TO_INSTALL=""
+              FATAL_ERROR=0
+              MISSING_PACKAGES=""
+
+              # Klasyfikacja zależności dla biblioteki
+              for package in $RAW_DEPS; do
+                if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
+                  DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
+                else
+                  FATAL_ERROR=1
+                  MISSING_PACKAGES="$MISSING_PACKAGES $package"
+                fi
+              done
+
+              if [ "$FATAL_ERROR" -eq 1 ]; then
+                echo "::error:: Cannot build library [$lib]! Missing system packages: $MISSING_PACKAGES"
+                echo "| Library | $lib | Missing system dependencies: $MISSING_PACKAGES |" >> $REPORT_FILE
+                continue
+              fi
+
+              if [ ! -z "$DEBS_TO_INSTALL" ]; then
+                echo "Installing system packages for $lib: $DEBS_TO_INSTALL"
+                apt-get install -y $DEBS_TO_INSTALL
+              fi
+            fi
+
+            # Kompilacja biblioteki
+            if ./scripts/indi-3rdparty-deb.sh "$lib"; then
+              echo "::notice:: Success: Library $lib built successfully."
+            else
+              echo "::error:: Compilation failed for library [$lib]"
+              echo "| Library | $lib | Compilation script returned non-zero exit status |" >> $REPORT_FILE
+            fi
+          done
+
+          # Zbiorcza instalacja wszystkich pomyślnie zbudowanych bibliotek
+          if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
+            echo "Installing all newly built libraries..."
+            apt-get install -y ./build/lib*.deb
+          else
+            echo "No libraries were built to be installed."
+          fi
+
+      - name: Build Drivers
+        run: |
+          cd 3rdparty
+          REPORT_FILE="failed_builds_report.md"
+
+          echo "========================================================="
+          echo "Phase 2: Building all drivers (indi-*)"
+          echo "========================================================="
 
           for driver in indi-* ; do
             control_file=debian/$driver/control
             [ -e "$control_file" ] || continue
             
             DRIVER_NAME=$driver
-            echo "========================================================="
+            echo "---------------------------------------------------------"
             echo "Analyzing driver: $DRIVER_NAME"
-            echo "========================================================="
+            echo "---------------------------------------------------------"
             
-            # Fetch the raw list of unmet dependencies
+            # Pobranie brakujących zależności
             RAW_DEPS=$(dpkg-checkbuilddeps "$control_file" 2>&1 | \
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
             
-
-            # POSIX-compliant error handling for dpkg tool failures
-            case "$RAW_DEPS" in
-              *błąd*|*error*|*Error*|*Błąd*)
-                echo "::error:: Critical dpkg-checkbuilddeps error for $DRIVER_NAME: $RAW_DEPS"
-                echo "| Driver | $DRIVER_NAME | Corrupted control file or dpkg error |" >> $REPORT_FILE
-                continue
-                ;;
-            esac
-            
-            DEBS_TO_INSTALL=""
-            LIBS_TO_BUILD=""
-            FATAL_ERROR=0
-            MISSING_FATAL_PACKAGES=""
-
-            # Categorize each missing dependency
-            for package in $RAW_DEPS; do
-              # Category 1: Package exists in official Debian repositories
-              if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
-                DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
-                
-              # Category 2: Package matches a local source directory
-              elif [ -d "${LIBS_SRC_DIR}/${package%-dev}" ]; then
-                LIBS_TO_BUILD="$LIBS_TO_BUILD ${package%-dev}"
-                
-              # Category 3: Package is completely missing (Fatal for this driver)
-              else
-                FATAL_ERROR=1
-                MISSING_FATAL_PACKAGES="$MISSING_FATAL_PACKAGES $package"
-              fi
-            done
-
-            # Handle Category 3 errors
-            if [ "$FATAL_ERROR" -eq 1 ]; then
-              echo "::error:: Cannot build driver [$DRIVER_NAME]! Missing ghost packages: $MISSING_FATAL_PACKAGES"
-              echo "| Driver | $DRIVER_NAME | Missing dependencies (not in Debian, no local source): $MISSING_FATAL_PACKAGES |" >> $REPORT_FILE
-              echo "Skipping driver [$DRIVER_NAME] due to unmet dependencies."
-              continue
-            fi
-
-            # Handle Category 2: Compile local dependencies
-            if [ ! -z "$LIBS_TO_BUILD" ]; then
-              echo "Local libraries detected to build for $DRIVER_NAME: $LIBS_TO_BUILD"
+            if [ -z "$RAW_DEPS" ]; then
+              echo "All dependencies for $DRIVER_NAME are satisfied."
+            else
+              # Obsługa błędów dpkg
+              case "$RAW_DEPS" in
+                *błąd*|*error*|*Error*|*Błąd*)
+                  echo "::error:: Critical dpkg-checkbuilddeps error for $DRIVER_NAME: $RAW_DEPS"
+                  echo "| Driver | $DRIVER_NAME | Corrupted control file or dpkg error |" >> $REPORT_FILE
+                  continue
+                  ;;
+              esac
               
-              LIB_BUILD_FAILED=0
+              DEBS_TO_INSTALL=""
+              FATAL_ERROR=0
+              MISSING_FATAL_PACKAGES=""
 
-              for lib in $LIBS_TO_BUILD; do
-                echo "-> Building and installing local library: $lib"
-                
-                if ./scripts/indi-3rdparty-deb.sh "$lib"; then                  
-                  if ! apt-get install -y ./build/"$lib"*.deb; then
-                    echo "::error:: Failed to install compiled package for library [$lib]"
-                    echo "| Library | $lib (dep of $DRIVER_NAME) | Installation of compiled .deb package failed |" >> $REPORT_FILE
-                    LIB_BUILD_FAILED=1
-                    break
-                  fi
+              # Klasyfikacja zależności (tylko pod kątem obecności w Debianie,
+              # ponieważ biblioteki zostały już zbudowane i zainstalowane)
+              for package in $RAW_DEPS; do
+                if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
+                  DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
                 else
-                  echo "::error:: Compilation of library [$lib] failed."
-                  echo "| Library | $lib (dep of $DRIVER_NAME) | 3rdparty build script execution failed |" >> $REPORT_FILE
-                  LIB_BUILD_FAILED=1
-                  break
+                  # Brak pakietu w repozytorium oznacza błąd krytyczny (brak wymaganej biblioteki)
+                  FATAL_ERROR=1
+                  MISSING_FATAL_PACKAGES="$MISSING_FATAL_PACKAGES $package"
                 fi
               done
 
-              if [ "$LIB_BUILD_FAILED" -eq 1 ]; then
-                echo "::error:: Skipping driver [$DRIVER_NAME] due to local dependency build failure."
+              # Obsługa niespełnionych zależności systemowych
+              if [ "$FATAL_ERROR" -eq 1 ]; then
+                echo "::error:: Cannot build driver [$DRIVER_NAME]! Missing packages: $MISSING_FATAL_PACKAGES"
+                echo "| Driver | $DRIVER_NAME | Missing dependencies (not found in repositories): $MISSING_FATAL_PACKAGES |" >> $REPORT_FILE
+                echo "Skipping driver [$DRIVER_NAME] due to unmet dependencies."
                 continue
               fi
-            fi            
 
-            # Handle Category 1: Install system packages
-            if [ ! -z "$DEBS_TO_INSTALL" ]; then
-              echo "Installing packages from Debian repository for $DRIVER_NAME: $DEBS_TO_INSTALL"
-              apt-get install -y $DEBS_TO_INSTALL
+              # Instalacja pakietów z repozytoriów Debiana
+              if [ ! -z "$DEBS_TO_INSTALL" ]; then
+                echo "Installing packages from Debian repository for $DRIVER_NAME: $DEBS_TO_INSTALL"
+                apt-get install -y $DEBS_TO_INSTALL
+              fi
             fi
 
-            echo "Dependencies for $DRIVER_NAME successfully resolved. Proceeding to compilation."
-            echo "Starting build process for driver: $DRIVER_NAME"
+            echo "Dependencies for $DRIVER_NAME successfully resolved. Starting build process."
             
-            # Execute driver compilation within a safe conditional block
+            # Kompilacja drivera
             if ./scripts/indi-3rdparty-deb.sh "$DRIVER_NAME"; then
               echo "::notice:: Success: Driver $DRIVER_NAME built successfully."
             else
               echo "::error:: Compilation error: Building driver [$DRIVER_NAME] failed!"
               echo "| Driver | $DRIVER_NAME | Driver compilation script returned non-zero exit code |" >> $REPORT_FILE
-              echo "Skipping error and moving to the next driver."
               continue
             fi
 
