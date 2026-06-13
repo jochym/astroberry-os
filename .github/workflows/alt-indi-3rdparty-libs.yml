@@ -104,17 +104,35 @@ jobs:
               continue
             fi
 
-            # Wywrotka powłoki jeśli wykryto biblioteki do zbudowania – tutaj musisz wpiąć swój mechanizm
             if [ ! -z "$LIBS_TO_BUILD" ]; then
               echo "Wykryto lokalne biblioteki do zbudowania dla $DRIVER_NAME: $LIBS_TO_BUILD"
+              
+              LIB_BUILD_FAILED=0
+
               for lib in $LIBS_TO_BUILD; do
                 echo "-> Budowanie i instalacja lokalnej biblioteki: $lib"
-                # apt-get build-dep debian/$lib/control
-                ./scripts/indi-3rdparty-deb.sh $lib
-                ls -lR build
-                apt-get install -y ./build/$lib*.deb
+                
+                # 1. Budowanie biblioteki (zamknięte w bloku warunkowym)
+                if ./scripts/indi-3rdparty-deb.sh "$lib"; then                  
+                  # 2. Instalacja zbudowanej biblioteki (również sprawdzamy status)
+                  if ! apt-get install -y ./build/"$lib"*.deb; then
+                    echo "::error:: Nie udało się zainstalować pakietu dla biblioteki [$lib]"
+                    LIB_BUILD_FAILED=1
+                    break
+                  fi
+                else
+                  echo "::error:: Kompilacja biblioteki [$lib] zakończyła się niepowodzeniem."
+                  LIB_BUILD_FAILED=1
+                  break # Przerywa pętlę budowania KOLEJNYCH bibliotek dla tego drivera
+                fi
               done
-            fi
+
+              # Jeśli którakolwiek biblioteka zawiodła, porzucamy ten driver
+              if [ "$LIB_BUILD_FAILED" -eq 1 ]; then
+                echo "::error:: Pomijam driver [$DRIVER_NAME] z powodu awarii zależności lokalnych."
+                continue # Przejście do następnego drivera w głównej pętli
+              fi
+            fi            
 
             # Instalacja pakietów standardowych z dystrybucji Debiana
             if [ ! -z "$DEBS_TO_INSTALL" ]; then
