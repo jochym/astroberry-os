@@ -18,11 +18,25 @@ jobs:
         run: |
           apt-get update
           apt-get install -q -y git ca-certificates build-essential dpkg-dev git ca-certificates
+
+      - name: Detect last release version
+        run: |
+          # Automatically detect the latest version from upstream releases
+          UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi/releases/latest | jq -r .tag_name)
+          VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
+          
+          # Fallback error handling
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Failed to fetch version from GitHub API. Using default version: 2.2.2"
+            VERSION="2.2.2"
+          fi
+          echo "Detected package version: $VERSION"
+      
       - name: Get INDI Sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi'
-          ref: refs/tags/v2.2.2
+          ref: refs/tags/v$VERSION
           path: 'indi'
       - name: Install build dependencies
         run: |
