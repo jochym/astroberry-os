@@ -1,0 +1,100 @@
+name: Build INDI 3rdparty Meta-Package
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build 3rd Party Libs and Drivers"]
+    types:
+      - completed
+
+jobs:
+  build-meta:
+    # Run only on parent workflow success or manual trigger
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie-slim
+    steps:
+      - name: Install packaging tools
+        run: |
+          apt-get update
+          apt-get install -q -y dpkg-dev binutils curl jq
+
+      # Retrieve artifacts from the previous pipeline run
+      - name: Download 3rdparty packages
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: alt-indi-3rdparty.yml
+          name: 3rdparty-compiled-packages
+          # Download from the specific triggering run if run automatically
+          run_id: ${{ github.event.workflow_run.id || '' }}
+          workflow_conclusion: success
+          path: ./downloaded-packages
+
+      - name: Generate indi-3rdparty meta-package
+        run: |
+          # Automatically detect the latest version from upstream releases
+          UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name)
+          VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
+          
+          # Fallback error handling
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
+            VERSION="2.2.2.1"
+          fi
+          echo "Detected package version: $VERSION"
+
+          # Create temporary directory structure for the Debian package
+          mkdir -p meta-pkg/DEBIAN
+          
+          RECOMMENDS_LIST=""
+
+          # Parse all downloaded .deb files to extract package names
+          for deb in ./downloaded-packages/*.deb; do
+            [ -f "$deb" ] || continue
+            pkg_name=$(dpkg-deb -f "$deb" Package)
+            
+            # Filter driver packages (indi-*)
+            case "$pkg_name" in
+              indi-*)
+                if [ -z "$RECOMMENDS_LIST" ]; then
+                  RECOMMENDS_LIST="$pkg_name"
+                else
+                  RECOMMENDS_LIST="$RECOMMENDS_LIST, $pkg_name"
+                fi
+                ;;
+            esac
+          done
+
+          if [ -z "$RECOMMENDS_LIST" ]; then
+            echo "::error:: No indi-* packages found to recommend!"
+            exit 1
+          fi
+
+          echo "Packages added to Recommends section: $RECOMMENDS_LIST"
+
+          # Create control file with dynamic version
+          cat <<EOF > meta-pkg/DEBIAN/control
+          Package: indi-3rdparty
+          Version: ${VERSION}-meta
+          Section: misc
+          Priority: optional
+          Architecture: all
+          Maintainer: Astroberry OS Build System <jochym@astroberry-os>
+          Recommends: $RECOMMENDS_LIST
+          Description: Meta-package for INDI 3rd party drivers
+           This meta-package recommends all compiled 3rd party drivers.
+           Using Recommends allows users to safely remove or replace individual
+           drivers without breaking the meta-package dependency chain.
+          EOF
+
+          # Build the final .deb package
+          echo "Compiling meta-package..."
+          dpkg-deb --build meta-pkg "./indi-3rdparty_${VERSION}-meta_all.deb"
+
+      - name: Upload meta-package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: indi-3rdparty-meta-package
+          path: ./*.deb
+          retention-days: 14
+          if-no-files-found: error
