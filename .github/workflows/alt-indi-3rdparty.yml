@@ -30,7 +30,7 @@ jobs:
 
       - name: Install Core Packages
         run: |
-          apt-get install -y ./pre-built-core/*.deb
+          apt-get install -y ./pre-built-core/build/*.deb
 
       - name: Categorize, Resolve and Build Drivers
         run: |
