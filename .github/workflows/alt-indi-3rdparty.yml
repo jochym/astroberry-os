@@ -9,8 +9,8 @@ jobs:
     steps:
       - name: Install git and dependencies
         run: |
-          apt-get update
-          apt-get install -q -y git ca-certificates build-essential curl jq dpkg-dev
+          apt-get update -qq
+          apt-get install -qq -y git ca-certificates build-essential curl jq dpkg-dev
       - name: Detect last release version
         run: |
           # Automatically detect the latest version from upstream releases
@@ -22,13 +22,15 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
+          # Export variable to GITHUB_ENV to make it available for subsequent steps
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Detected package version: $VERSION"
 
       - name: Get INDI Sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi-3rdparty'
-          ref: refs/tags/v$VERSION
+          ref: refs/tags/v${{ env.VERSION }}
           path: '3rdparty'
 
       - name: Download Artifact from Core Workflow
@@ -42,7 +44,7 @@ jobs:
 
       - name: Install Core Packages
         run: |
-          apt-get install -y ./pre-built-core/build/*.deb
+          apt-get install -qqy ./pre-built-core/build/*.deb
 
       - name: Build and Install All Libraries
         run: |
@@ -103,7 +105,7 @@ jobs:
 
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing system packages for $lib: $DEBS_TO_INSTALL"
-                apt-get install -y $DEBS_TO_INSTALL
+                apt-get install -qqy $DEBS_TO_INSTALL
               fi
             fi
 
@@ -186,7 +188,7 @@ jobs:
               # Instalacja pakietów z repozytoriów Debiana
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing packages from Debian repository for $DRIVER_NAME: $DEBS_TO_INSTALL"
-                apt-get install -y $DEBS_TO_INSTALL
+                apt-get install -qqy $DEBS_TO_INSTALL
               fi
             fi
 
