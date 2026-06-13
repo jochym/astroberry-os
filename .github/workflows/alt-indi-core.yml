@@ -30,13 +30,14 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2"
             VERSION="2.2.2"
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Detected package version: $VERSION"
       
       - name: Get INDI Sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi'
-          ref: refs/tags/v$VERSION
+          ref: refs/tags/v${VERSION}
           path: 'indi'
       - name: Install build dependencies
         run: |
