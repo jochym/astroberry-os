@@ -81,8 +81,8 @@ jobs:
                 DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
                 
               # Category 2: Package matches a local source directory
-              elif [ -d "${LIBS_SRC_DIR}/${package}" ]; then
-                LIBS_TO_BUILD="$LIBS_TO_BUILD $package"
+              elif [ -d "${LIBS_SRC_DIR}/${package%-dev}" ]; then
+                LIBS_TO_BUILD="$LIBS_TO_BUILD ${package%-dev}"
                 
               # Category 3: Package is completely missing (Fatal for this driver)
               else
