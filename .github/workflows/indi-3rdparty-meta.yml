@@ -10,6 +10,7 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   DEBIAN_FRONTEND: noninteractive
+  DEBCONF_FRONTEND: noninteractive
   APT_LISTCHANGES_FRONTEND: none
 
 jobs:
@@ -29,7 +30,6 @@ jobs:
         run: |
           cat > /etc/apt/apt.conf.d/99opencode-quiet <<'EOF'
           APT::Get::Quiet "2";
-          Dpkg::Options {"--force-quiet";};
           Dpkg::Progress-Fancy "0";
           quiet "true";
           EOF

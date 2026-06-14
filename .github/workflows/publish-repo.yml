@@ -9,6 +9,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  DEBIAN_FRONTEND: noninteractive
+  DEBCONF_FRONTEND: noninteractive
   REPO_CODENAME: trixie
   REPO_COMPONENT: main
   REPO_ORIGIN: Astroberry Alt
@@ -28,7 +30,6 @@ jobs:
         run: |
           sudo tee /etc/apt/apt.conf.d/99opencode-quiet > /dev/null <<'EOF'
           APT::Get::Quiet "2";
-          Dpkg::Options {"--force-quiet";};
           Dpkg::Progress-Fancy "0";
           quiet "true";
           EOF

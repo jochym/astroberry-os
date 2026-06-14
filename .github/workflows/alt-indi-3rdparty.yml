@@ -5,6 +5,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  DEBIAN_FRONTEND: noninteractive
+  DEBCONF_FRONTEND: noninteractive
 
 jobs:
   build-3rdparty-drivers:
@@ -24,7 +26,6 @@ jobs:
         run: |
           cat > /etc/apt/apt.conf.d/99opencode-quiet <<'EOF'
           APT::Get::Quiet "2";
-          Dpkg::Options {"--force-quiet";};
           Dpkg::Progress-Fancy "0";
           quiet "true";
           EOF
@@ -63,7 +64,7 @@ jobs:
 
       - name: Install core packages
         run: |
-          dpkg -i --force-quiet --force-depends ./pre-built-core/build/*.deb
+          dpkg -i --force-depends ./pre-built-core/build/*.deb
 
       - name: Build and install all libraries
         run: |
@@ -123,7 +124,7 @@ jobs:
           done
           if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
             echo "Installing all newly built libraries..."
-            dpkg -i --force-quiet --force-overwrite ./build/lib*.deb
+            dpkg -i --force-overwrite ./build/lib*.deb
           else
             echo "No libraries were built to be installed."
           fi
