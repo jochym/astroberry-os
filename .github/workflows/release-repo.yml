@@ -1,0 +1,237 @@
+name: Publish APT Repository via Releases
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build 3rd Party Libs and Drivers"]
+    types:
+      - completed
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  REPO_CODENAME: trixie
+  REPO_COMPONENT: main
+  REPO_ORIGIN: Astroberry Alt
+  REPO_LABEL: Astroberry Alt Repository
+  REPO_SUITE: stable
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Configure apt for quiet mode
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99opencode-quiet > /dev/null <<'EOF'
+          APT::Get::Quiet "2";
+          Dpkg::Progress-Fancy "0";
+          quiet "true";
+          EOF
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Detect upstream versions
+        run: |
+          CORE_TAG=$(curl -s https://api.github.com/repos/indilib/indi/releases/latest | jq -r .tag_name | sed 's/^v//')
+          THIRD_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name | sed 's/^v//')
+          [ -z "$CORE_TAG" ] || [ "$CORE_TAG" = "null" ] && CORE_TAG="2.2.2"
+          [ -z "$THIRD_TAG" ] || [ "$THIRD_TAG" = "null" ] && THIRD_TAG="2.2.2.1"
+          echo "CORE_VERSION=$CORE_TAG" >> $GITHUB_ENV
+          echo "THIRD_VERSION=$THIRD_TAG" >> $GITHUB_ENV
+          if dpkg --compare-versions "$CORE_TAG" gt "$THIRD_TAG"; then
+            RELEASE_VERSION=$CORE_TAG
+          else
+            RELEASE_VERSION=$THIRD_TAG
+          fi
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          echo "Core: v$CORE_TAG, 3rdparty: v$THIRD_TAG, Release: v$RELEASE_VERSION"
+
+      - name: Download core packages (arm64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: alt-indi-core.yml
+          name: indi-compiled-packages-arm64
+          workflow_conclusion: success
+          path: ./artifacts/core-arm64
+
+      - name: Download core packages (amd64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: alt-indi-core.yml
+          name: indi-compiled-packages-amd64
+          workflow_conclusion: success
+          path: ./artifacts/core-amd64
+
+      - name: Download 3rdparty packages (arm64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: alt-indi-3rdparty.yml
+          name: 3rdparty-compiled-packages-arm64
+          workflow_conclusion: success
+          path: ./artifacts/3rdparty-arm64
+
+      - name: Download 3rdparty packages (amd64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: alt-indi-3rdparty.yml
+          name: 3rdparty-compiled-packages-amd64
+          workflow_conclusion: success
+          path: ./artifacts/3rdparty-amd64
+
+      - name: Download meta-packages (arm64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: indi-3rdparty-meta.yml
+          name: indi-3rdparty-meta-package-arm64
+          workflow_conclusion: success
+          path: ./artifacts/meta-arm64
+
+      - name: Download meta-packages (amd64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: indi-3rdparty-meta.yml
+          name: indi-3rdparty-meta-package-amd64
+          workflow_conclusion: success
+          path: ./artifacts/meta-amd64
+
+      - name: Create or find GitHub Release
+        run: |
+          TAG="v${RELEASE_VERSION}"
+          API="https://api.github.com/repos/${{ github.repository }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+          EXISTING=$(curl -s -H "Authorization: token $TOKEN" "$API/releases/tags/$TAG")
+          RELEASE_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Creating release $TAG..."
+            BODY=$(printf '## INDI Repository v%s\n\n- **Core:** v%s\n- **3rdparty:** v%s\n\nAutomated APT repository release.' \
+              "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
+            PAYLOAD=$(jq -n \
+              --arg tag "$TAG" \
+              --arg name "INDI Repository v${RELEASE_VERSION}" \
+              --arg body "$BODY" \
+              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+
+            CREATE=$(curl -s -X POST -H "Authorization: token $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" "$API/releases")
+            RELEASE_ID=$(echo "$CREATE" | jq -r '.id // empty')
+            echo "Created release ID: $RELEASE_ID"
+          else
+            echo "Release $TAG already exists, ID: $RELEASE_ID"
+          fi
+
+          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Upload .deb packages as release assets
+        run: |
+          API="https://api.github.com/repos/${{ github.repository }}"
+          UPLOAD="https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.RELEASE_ID }}/assets"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+          echo "Fetching existing assets..."
+          curl -s -H "Authorization: token $TOKEN" \
+            "$API/releases/${{ env.RELEASE_ID }}/assets" | \
+            jq -r '.[] | "\(.id) \(.name)"' > /tmp/existing_assets.txt
+
+          find ./artifacts -name "*.deb" -print0 | while IFS= read -r -d '' deb; do
+            name=$(basename "$deb")
+            asset_id=$(awk -v n="$name" '$2 == n {print $1}' /tmp/existing_assets.txt)
+            if [ -n "$asset_id" ]; then
+              echo "  Removing old asset: $name"
+              curl -s -X DELETE -H "Authorization: token $TOKEN" \
+                "$API/repos/${{ github.repository }}/releases/assets/$asset_id"
+            fi
+            echo "  Uploading: $name"
+            curl -s -X POST -H "Authorization: token $TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              "$UPLOAD?name=$name" --data-binary "@$deb" > /dev/null
+          done
+
+      - name: Prepare repository indices
+        run: |
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          DOWNLOAD_URL="$REPO_URL/releases/download/$TAG"
+
+          mkdir -p repo/pool/main
+          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64
+          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64
+
+          # Copy .deb to pool (for indexing)
+          find ./artifacts -name "*.deb" -exec cp {} repo/pool/main/ \;
+          echo "Total packages: $(find repo/pool/main -name '*.deb' | wc -l)"
+
+          cd repo
+
+          # Generate Packages for arm64
+          dpkg-scanpackages --arch=arm64 pool/main /dev/null | \
+            sed "s|^Filename: pool/main/|Filename: $DOWNLOAD_URL/|g" \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
+
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Components
+
+          # Generate Packages for amd64
+          dpkg-scanpackages --arch=amd64 pool/main /dev/null | \
+            sed "s|^Filename: pool/main/|Filename: $DOWNLOAD_URL/|g" \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
+
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Components
+
+      - name: Generate Release file
+        run: |
+          cd repo/dists/${REPO_CODENAME}
+          {
+            echo "Origin: ${REPO_ORIGIN}"
+            echo "Label: ${REPO_LABEL}"
+            echo "Suite: ${REPO_SUITE}"
+            echo "Codename: ${REPO_CODENAME}"
+            echo "Version: 1.0"
+            echo "Architectures: arm64 amd64"
+            echo "Components: ${REPO_COMPONENT}"
+            echo "Description: Astroberry Alt INDI repository for ${REPO_CODENAME}"
+            echo "Date: $(date -Ru)"
+            echo ""
+            echo "MD5Sum:"
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
+              echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
+            done
+            echo "SHA256:"
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
+              echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
+            done
+          } > Release
+
+      - name: Remove pool before deploy
+        run: |
+          rm -rf repo/pool
+          echo "Final structure:"
+          find repo -type f | sort
+
+      - name: Deploy indices to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo
+          destination_dir: .
+          keep_files: false
