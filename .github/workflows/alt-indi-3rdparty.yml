@@ -20,10 +20,19 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: debian:trixie-slim
     steps:
+      - name: Configure apt for quiet mode
+        run: |
+          cat > /etc/apt/apt.conf.d/99opencode-quiet <<'EOF'
+          APT::Get::Quiet "2";
+          Dpkg::Options {"--force-quiet";};
+          Dpkg::Progress-Fancy "0";
+          quiet "true";
+          EOF
+
       - name: Install build tools
         run: |
-          apt-get update -qq
-          apt-get install -qq -y git ca-certificates build-essential curl jq dpkg-dev
+          apt-get update
+          apt-get install -y git ca-certificates build-essential curl jq dpkg-dev
 
       - name: Detect upstream release version
         run: |
@@ -54,7 +63,7 @@ jobs:
 
       - name: Install core packages
         run: |
-          apt-get install -qqy ./pre-built-core/build/*.deb
+          dpkg -i --force-quiet --force-depends ./pre-built-core/build/*.deb
 
       - name: Build and install all libraries
         run: |
@@ -102,7 +111,7 @@ jobs:
               fi
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing system packages for $lib: $DEBS_TO_INSTALL"
-                apt-get install -qqy $DEBS_TO_INSTALL
+                apt-get install -y $DEBS_TO_INSTALL
               fi
             fi
             if ./scripts/indi-3rdparty-deb.sh "$lib"; then
@@ -114,7 +123,7 @@ jobs:
           done
           if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
             echo "Installing all newly built libraries..."
-            apt-get install -y -o Dpkg::Options::="--force-overwrite" ./build/lib*.deb
+            dpkg -i --force-quiet --force-overwrite ./build/lib*.deb
           else
             echo "No libraries were built to be installed."
           fi
@@ -165,7 +174,7 @@ jobs:
               fi
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing packages from Debian repository for $DRIVER_NAME: $DEBS_TO_INSTALL"
-                apt-get install -qqy $DEBS_TO_INSTALL
+                apt-get install -y $DEBS_TO_INSTALL
               fi
             fi
             echo "Dependencies for $DRIVER_NAME successfully resolved. Starting build process."

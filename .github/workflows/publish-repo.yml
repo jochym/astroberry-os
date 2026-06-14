@@ -24,10 +24,19 @@ jobs:
       pages: write
       id-token: write
     steps:
+      - name: Configure apt for quiet mode
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99opencode-quiet > /dev/null <<'EOF'
+          APT::Get::Quiet "2";
+          Dpkg::Options {"--force-quiet";};
+          Dpkg::Progress-Fancy "0";
+          quiet "true";
+          EOF
+
       - name: Install packaging tools
         run: |
-          apt-get update -qq
-          apt-get install -qq -y dpkg-dev dpkg-scanpackages gnupg
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev dpkg-scanpackages gnupg
 
       - name: Import GPG signing key
         run: |

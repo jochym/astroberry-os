@@ -27,10 +27,19 @@ jobs:
       image: debian:trixie-slim
 
     steps:
+      - name: Configure apt for quiet mode
+        run: |
+          cat > /etc/apt/apt.conf.d/99opencode-quiet <<'EOF'
+          APT::Get::Quiet "2";
+          Dpkg::Options {"--force-quiet";};
+          Dpkg::Progress-Fancy "0";
+          quiet "true";
+          EOF
+
       - name: Install build tools
         run: |
-          apt-get update -qq
-          apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev
+          apt-get update
+          apt-get install -y git ca-certificates curl jq build-essential dpkg-dev
 
       - name: Detect upstream release version
         run: |
@@ -52,11 +61,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          apt-get build-dep -qqy ./indi
+          apt-get build-dep -y ./indi
 
       - name: Build INDI core packages
         run: |
-          indi/scripts/indi-core-deb.sh 2>&1 | tail -20
+          indi/scripts/indi-core-deb.sh
 
       - name: Upload compiled packages (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
