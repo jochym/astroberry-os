@@ -2,10 +2,6 @@ name: Publish APT Repository via Releases
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Build 3rd Party Libs and Drivers"]
-    types:
-      - completed
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -17,7 +13,7 @@ env:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
     runs-on: ubuntu-latest
     permissions:
       contents: write
