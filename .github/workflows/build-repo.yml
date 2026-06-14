@@ -63,16 +63,14 @@ jobs:
           mkdir -p repo/pool/main
 
           echo "Fetching assets for $TAG..."
-          ASSETS=$(curl -s -H "Authorization: token $TOKEN" \
-            "$API/releases/tags/$TAG" | jq -r '.assets[]? | .name')
+          curl -s -H "Authorization: token $TOKEN" \
+            "$API/releases/tags/$TAG" | jq -r '.assets[]? | .name' > /tmp/release_assets.txt
 
-          COUNT=0
-          echo "$ASSETS" | while IFS= read -r asset; do
-            [ -z "$asset" ] && continue
-            echo "  Downloading: $asset"
-            curl -s -L -o "repo/pool/main/$asset" "$DOWNLOAD_BASE/$asset"
-            COUNT=$((COUNT + 1))
-          done
+          COUNT=$(wc -l < /tmp/release_assets.txt)
+          echo "Found $COUNT assets, downloading (4 parallel)..."
+          export DOWNLOAD_BASE
+          xargs -P 4 -I {} -a /tmp/release_assets.txt \
+            sh -c 'curl -s -L -o "repo/pool/main/{}" "$DOWNLOAD_BASE/{}"'
 
           echo "Downloaded $COUNT packages"
           echo "Total pool size: $(du -sh repo/pool/main | cut -f1)"
