@@ -101,7 +101,7 @@ jobs:
 
       - name: Copy all packages to pool
         run: |
-          find ./artifacts -name "*.deb" -exec cp {} repo/pool/main/ \;
+          find ./artifacts -name "*.deb" ! -name "*-dbgsym*.deb" -exec cp {} repo/pool/main/ \;
           echo "Total packages: $(find repo/pool/main -name '*.deb' | wc -l)"
 
       - name: Generate Packages for arm64
