@@ -1,6 +1,10 @@
 name: Build 3rd Party Libs and Drivers
+
 on:
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build-3rdparty-drivers:
@@ -16,12 +20,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: debian:trixie-slim
     steps:
-      - name: Install git and dependencies
+      - name: Install build tools
         run: |
           apt-get update -qq
           apt-get install -qq -y git ca-certificates build-essential curl jq dpkg-dev
 
-      - name: Detect last release version
+      - name: Detect upstream release version
         run: |
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
@@ -32,14 +36,14 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Detected package version: $VERSION"
 
-      - name: Get INDI Sources
+      - name: Checkout INDI 3rdparty sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi-3rdparty'
           ref: refs/tags/v${{ env.VERSION }}
           path: '3rdparty'
 
-      - name: Download Artifact from Core Workflow
+      - name: Download core packages (${{ matrix.arch }})
         uses: dawidd6/action-download-artifact@v9
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -48,11 +52,11 @@ jobs:
           workflow_conclusion: success
           path: ./pre-built-core
 
-      - name: Install Core Packages
+      - name: Install core packages
         run: |
           apt-get install -qqy ./pre-built-core/build/*.deb
 
-      - name: Build and Install All Libraries
+      - name: Build and install all libraries
         run: |
           cd 3rdparty
           REPORT_FILE="failed_builds_report.md"
@@ -115,7 +119,7 @@ jobs:
             echo "No libraries were built to be installed."
           fi
 
-      - name: Build Drivers
+      - name: Build drivers
         run: |
           cd 3rdparty
           REPORT_FILE="failed_builds_report.md"
@@ -175,7 +179,7 @@ jobs:
             echo "Procedure completed for: $DRIVER_NAME"
           done
 
-      - name: Upload Compiled Debian Packages
+      - name: Upload compiled packages (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
           name: 3rdparty-compiled-packages-${{ matrix.arch }}
@@ -184,7 +188,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      - name: Upload Failed Builds Report
+      - name: Upload failed builds report (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -3,6 +3,9 @@ name: Build core INDI Libs and Drivers
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     strategy:
@@ -20,12 +23,12 @@ jobs:
       image: debian:trixie-slim
 
     steps:
-      - name: Install git and dependencies
+      - name: Install build tools
         run: |
           apt-get update -qq
           apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev
 
-      - name: Detect last release version
+      - name: Detect upstream release version
         run: |
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
@@ -36,7 +39,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Detected package version: $VERSION"
       
-      - name: Get INDI Sources
+      - name: Checkout INDI sources
         uses: actions/checkout@v6
         with:
           repository: 'indilib/indi'
@@ -47,11 +50,11 @@ jobs:
         run: |
           apt-get build-dep -qqy ./indi
 
-      - name: Build INDI Core Packages
+      - name: Build INDI core packages
         run: |
           indi/scripts/indi-core-deb.sh
 
-      - name: Upload Compiled Debian Packages
+      - name: Upload compiled packages (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
           name: indi-compiled-packages-${{ matrix.arch }}
