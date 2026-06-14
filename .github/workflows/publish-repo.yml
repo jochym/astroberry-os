@@ -24,6 +24,11 @@ jobs:
       pages: write
       id-token: write
     steps:
+      - name: Install packaging tools
+        run: |
+          apt-get update -qq
+          apt-get install -qq -y dpkg-dev dpkg-scanpackages
+
       - name: Download core packages (arm64)
         uses: dawidd6/action-download-artifact@v9
         with:
@@ -60,14 +65,23 @@ jobs:
           workflow_conclusion: success
           path: ./artifacts/3rdparty-amd64
 
-      - name: Download meta-package
+      - name: Download meta-package (arm64)
         uses: dawidd6/action-download-artifact@v9
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: indi-3rdparty-meta.yml
-          name: indi-3rdparty-meta-package
+          name: indi-3rdparty-meta-package-arm64
           workflow_conclusion: success
-          path: ./artifacts/meta
+          path: ./artifacts/meta-arm64
+
+      - name: Download meta-package (amd64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: indi-3rdparty-meta.yml
+          name: indi-3rdparty-meta-package-amd64
+          workflow_conclusion: success
+          path: ./artifacts/meta-amd64
 
       - name: Prepare repository structure
         run: |
@@ -78,47 +92,43 @@ jobs:
       - name: Copy all packages to pool
         run: |
           find ./artifacts -name "*.deb" -exec cp {} repo/pool/main/ \;
-          echo "Total packages copied: $(find repo/pool/main -name "*.deb" | wc -l)"
+          echo "Total packages: $(find repo/pool/main -name '*.deb' | wc -l)"
 
       - name: Generate Packages for arm64
         run: |
           cd repo
-          dpkg-scanpackages --arch=arm64 pool/main /dev/null | gzip -9c > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
           dpkg-scanpackages --arch=arm64 pool/main /dev/null > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
 
       - name: Generate Packages for amd64
         run: |
           cd repo
-          dpkg-scanpackages --arch=amd64 pool/main /dev/null | gzip -9c > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
           dpkg-scanpackages --arch=amd64 pool/main /dev/null > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
 
       - name: Generate Release file
         run: |
           cd repo/dists/${REPO_CODENAME}
-          cat <<EOF > Release
-Origin: ${REPO_ORIGIN}
-Label: ${REPO_LABEL}
-Suite: ${REPO_SUITE}
-Codename: ${REPO_CODENAME}
-Version: 1.0
-Architectures: arm64 amd64
-Components: ${REPO_COMPONENT}
-Description: Astroberry Alt INDI repository for ${REPO_CODENAME}
-Date: $(date -Ru)
-EOF
-          # Add checksums
           {
+            echo "Origin: ${REPO_ORIGIN}"
+            echo "Label: ${REPO_LABEL}"
+            echo "Suite: ${REPO_SUITE}"
+            echo "Codename: ${REPO_CODENAME}"
+            echo "Version: 1.0"
+            echo "Architectures: arm64 amd64"
+            echo "Components: ${REPO_COMPONENT}"
+            echo "Description: Astroberry Alt INDI repository for ${REPO_CODENAME}"
+            echo "Date: $(date -Ru)"
+            echo ""
             echo "MD5Sum:"
-            find ${REPO_COMPONENT} -type f -name "Packages*" -exec md5sum {} \; | sed 's|  | |' | awk '{print " " $1 " " $2 " " $3}'
+            find ${REPO_COMPONENT} -type f -name "Packages*" -exec sha256sum {} \; | awk '{print " " $1 " " $2 " " $3}'
             echo "SHA256:"
-            find ${REPO_COMPONENT} -type f -name "Packages*" -exec sha256sum {} \; | sed 's|  | |' | awk '{print " " $1 " " $2 " " $3}'
-          } >> Release
+            find ${REPO_COMPONENT} -type f -name "Packages*" -exec sha256sum {} \; | awk '{print " " $1 " " $2 " " $3}'
+          } > Release
 
       - name: Verify repository structure
         run: |
           find repo -type f | sort
-          echo "---"
-          cat repo/dists/${REPO_CODENAME}/Release
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

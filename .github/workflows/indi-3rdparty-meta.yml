@@ -1,4 +1,5 @@
 name: Build INDI 3rdparty Meta-Package
+
 on:
   workflow_dispatch:
   workflow_run:
@@ -6,54 +7,55 @@ on:
     types:
       - completed
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  DEBIAN_FRONTEND: noninteractive
+  APT_LISTCHANGES_FRONTEND: none
+
 jobs:
   build-meta:
-    # Run only on parent workflow success or manual trigger
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - arm64
+          - amd64
+
     runs-on: ubuntu-24.04-arm
     container: debian:trixie-slim
     steps:
       - name: Install packaging tools
         run: |
-          apt-get update
-          apt-get install -q -y dpkg-dev binutils curl jq
+          apt-get update -qq
+          apt-get install -qq -y dpkg-dev binutils curl jq
 
-      # Retrieve artifacts from the previous pipeline run
-      - name: Download 3rdparty packages
+      - name: Download 3rdparty packages (${{ matrix.arch }})
         uses: dawidd6/action-download-artifact@v9
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: alt-indi-3rdparty.yml
-          name: 3rdparty-compiled-packages
-          # Download from the specific triggering run if run automatically
+          name: 3rdparty-compiled-packages-${{ matrix.arch }}
           run_id: ${{ github.event.workflow_run.id || '' }}
           workflow_conclusion: success
           path: ./downloaded-packages
 
-      - name: Generate indi-3rdparty meta-package
+      - name: Generate indi-3rdparty meta-package (${{ matrix.arch }})
         run: |
-          # Automatically detect the latest version from upstream releases
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
-          
-          # Fallback error handling
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
           echo "Detected package version: $VERSION"
 
-          # Create temporary directory structure for the Debian package
           mkdir -p meta-pkg/DEBIAN
-          
-          RECOMMENDS_LIST=""
 
-          # Parse all downloaded .deb files to extract package names
+          RECOMMENDS_LIST=""
           for deb in ./downloaded-packages/*.deb; do
             [ -f "$deb" ] || continue
             pkg_name=$(dpkg-deb -f "$deb" Package)
-            
-            # Filter driver packages (indi-*)
             case "$pkg_name" in
               indi-*)
                 if [ -z "$RECOMMENDS_LIST" ]; then
@@ -72,29 +74,27 @@ jobs:
 
           echo "Packages added to Recommends section: $RECOMMENDS_LIST"
 
-          # Create control file with dynamic version
           cat <<EOF > meta-pkg/DEBIAN/control
           Package: indi-3rdparty
           Version: ${VERSION}-meta
           Section: misc
           Priority: optional
-          Architecture: all
+          Architecture: ${{ matrix.arch }}
           Maintainer: Astroberry OS Build System <jochym@astroberry-os>
           Recommends: $RECOMMENDS_LIST
-          Description: Meta-package for INDI 3rd party drivers
-           This meta-package recommends all compiled 3rd party drivers.
+          Description: Meta-package for INDI 3rd party drivers (${{ matrix.arch }})
+           This meta-package recommends all compiled 3rd party drivers
+           for the ${{ matrix.arch }} architecture.
            Using Recommends allows users to safely remove or replace individual
            drivers without breaking the meta-package dependency chain.
           EOF
 
-          # Build the final .deb package
-          echo "Compiling meta-package..."
-          dpkg-deb --build meta-pkg "./indi-3rdparty_${VERSION}-meta_all.deb"
+          dpkg-deb --build meta-pkg "./indi-3rdparty-${VERSION}-meta_${{ matrix.arch }}.deb"
 
-      - name: Upload meta-package as artifact
+      - name: Upload meta-package (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
-          name: indi-3rdparty-meta-package
+          name: indi-3rdparty-meta-package-${{ matrix.arch }}
           path: ./*.deb
           retention-days: 14
           if-no-files-found: error
