@@ -98,11 +98,11 @@ jobs:
 
           if [ -z "$RELEASE_ID" ]; then
             echo "Creating release $TAG..."
-            BODY=$(printf '## INDI Repository v%s\n\n- **Core:** v%s\n- **3rdparty:** v%s\n\nAutomated APT repository release (full build including dbg/dbgsym).' \
+            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architektury:** amd64, arm64\n\nAssety poniżej to pojedyncze pakiety `.deb` do bezpośredniego pobrania.\n\n**Zalecana metoda instalacji — APT repository:**\n\n```\ndeb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main\n```\n\nPełna dokumentacja: https://jochym.github.io/astroberry-os/' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
               --arg tag "$TAG" \
-              --arg name "INDI Repository v${RELEASE_VERSION}" \
+              --arg name "Debian build of INDI v${RELEASE_VERSION}" \
               --arg body "$BODY" \
               '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
 
