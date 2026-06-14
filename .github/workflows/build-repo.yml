@@ -162,11 +162,11 @@ jobs:
           <h2>GPG Key</h2>
           <p>Public key for verifying repository signatures:</p>
           <p><a href="/gpg_public_key.asc" class="btn">Download public key (ASCII armor)</a></p>
-          <pre>curl -fsSL https://jochym.github.io/astroberry-os/gpg_public_key.asc | sudo gpg --dearmor -o /usr/share/keyrings/astroberry.gpg</pre>
+          <pre>curl -fsSL https://jochym.github.io/astroberry-os/gpg_public_key.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/astroberry.gpg</pre>
 
           <h2>Adding the Repository</h2>
           <p>Add to <code>/etc/apt/sources.list.d/astroberry.list</code>:</p>
-          <pre>deb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main</pre>
+          <pre>deb [signed-by=/etc/apt/trusted.gpg.d/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main</pre>
           <p>Or without GPG verification (faster for testing):</p>
           <pre>deb [trusted=yes] https://jochym.github.io/astroberry-os/ stable main</pre>
           <p>Then:</p>
