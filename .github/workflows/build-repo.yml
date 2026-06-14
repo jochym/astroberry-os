@@ -1,4 +1,4 @@
-name: Build & Deploy APT Repository
+name: Build & Deploy APT Repository (gh-pages, history pruned)
 
 on:
   workflow_dispatch:
@@ -10,31 +10,34 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  REPO_CODENAME: trixie
+  REPO_CODENAME: stable
   REPO_COMPONENT: main
-  REPO_ORIGIN: Astroberry Alt
-  REPO_LABEL: Astroberry Alt Repository
+  REPO_ORIGIN: Astroberry OS
+  REPO_LABEL: Astroberry INDI Repository
   REPO_SUITE: stable
-  MUTABLE_RELEASE_TAG: trixie
+  REPO_ARCHITECTURES: "arm64 amd64"
+  REPO_DESCRIPTION: "Astroberry Alt INDI repository for Debian stable"
 
 jobs:
   repo:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    container:
+      image: debian:trixie-slim
     steps:
+      - name: Install tools
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            dpkg-dev apt-utils git gpg curl jq ca-certificates
+
       - name: Configure apt for quiet mode
         run: |
-          sudo tee /etc/apt/apt.conf.d/99opencode-quiet > /dev/null <<'EOF'
+          cat > /etc/apt/apt.conf.d/99opencode-quiet <<'EOF'
           APT::Get::Quiet "2";
           Dpkg::Progress-Fancy "0";
           quiet "true";
           EOF
-
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev jq
 
       - name: Determine release tag
         run: |
@@ -59,123 +62,143 @@ jobs:
           API="https://api.github.com/repos/${{ github.repository }}"
           DOWNLOAD_BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
 
-          mkdir -p repo/pool/main
+          mkdir -p repo-site/pool/main
 
           echo "Fetching assets for $TAG..."
           curl -s -H "Authorization: token $TOKEN" \
             "$API/releases/tags/$TAG" | jq -r '.assets[]? | .name' > /tmp/all_assets.txt
 
-          # Filter out dbg and dbgsym packages
-          grep -vE '(-dbg|-dbgsym)_' /tmp/all_assets.txt > /tmp/release_assets.txt
-
-          COUNT=$(wc -l < /tmp/release_assets.txt)
-          echo "Found $COUNT packages (filtered out dbg/dbgsym)"
+          COUNT=$(wc -l < /tmp/all_assets.txt)
+          echo "Found $COUNT packages (dbg/dbgsym already filtered at build-release stage)"
           export DOWNLOAD_BASE
-          xargs -P 4 -I {} -a /tmp/release_assets.txt \
-            sh -c 'curl -s -L -o "repo/pool/main/{}" "$DOWNLOAD_BASE/{}"'
+          xargs -P 4 -I {} -a /tmp/all_assets.txt \
+            sh -c 'curl -s -L -o "repo-site/pool/main/{}" "$DOWNLOAD_BASE/{}"'
 
           echo "Downloaded $COUNT packages"
-          echo "Total pool size: $(du -sh repo/pool/main | cut -f1)"
+          echo "Total pool size: $(du -sh repo-site/pool/main | cut -f1)"
+
+      - name: Generate apt-ftparchive config
+        run: |
+          cat > apt-release.conf <<EOF
+          APT::FTPArchive::Release::Origin "${REPO_ORIGIN}";
+          APT::FTPArchive::Release::Label "${REPO_LABEL}";
+          APT::FTPArchive::Release::Suite "${REPO_SUITE}";
+          APT::FTPArchive::Release::Codename "${REPO_CODENAME}";
+          APT::FTPArchive::Release::Architectures "${REPO_ARCHITECTURES}";
+          APT::FTPArchive::Release::Components "${REPO_COMPONENT}";
+          APT::FTPArchive::Release::Description "${REPO_DESCRIPTION}";
+          EOF
 
       - name: Generate repository indices
         run: |
-          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64
-          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64
+          mkdir -p repo-site/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64
+          mkdir -p repo-site/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64
 
-          cd repo
+          cd repo-site
 
           # Generate Packages for arm64
-          dpkg-scanpackages --arch=arm64 pool/main /dev/null \
-            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
-          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages \
-            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
+          apt-ftparchive packages pool/main > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
+          gzip -fk dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
           echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Components
 
           # Generate Packages for amd64
-          dpkg-scanpackages --arch=amd64 pool/main /dev/null \
-            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
-          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages \
-            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
+          apt-ftparchive packages pool/main > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
+          gzip -fk dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
           echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Components
 
       - name: Generate Release file
         run: |
-          cd repo/dists/${REPO_CODENAME}
-          {
-            echo "Origin: ${REPO_ORIGIN}"
-            echo "Label: ${REPO_LABEL}"
-            echo "Suite: ${REPO_SUITE}"
-            echo "Codename: ${REPO_CODENAME}"
-            echo "Version: 1.0"
-            echo "Architectures: arm64 amd64"
-            echo "Components: ${REPO_COMPONENT}"
-            echo "Description: Astroberry Alt INDI repository for ${REPO_CODENAME}"
-            echo "Date: $(date -Ru)"
-            echo ""
-            echo "MD5Sum:"
-            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
-              echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
-            done
-            echo "SHA256:"
-            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
-              echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
-            done
-          } > Release
+          cd repo-site
+          apt-ftparchive release -c ../apt-release.conf dists/${REPO_CODENAME} > dists/${REPO_CODENAME}/Release
 
-      - name: Upload to mutable Release "trixie"
+      - name: Import GPG key and sign
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          TAG="${{ env.MUTABLE_RELEASE_TAG }}"
-          API="https://api.github.com/repos/${{ github.repository }}"
-          UPLOAD="https://uploads.github.com/repos/${{ github.repository }}/releases"
-          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          echo "${GPG_PRIVATE_KEY}" | gpg --import --batch --yes
+          # Set ultimate trust for the imported key
+          KEY_FPR=$(gpg --list-keys --with-colons | awk -F: '/^pub:/ {print $5; exit}')
+          echo "${KEY_FPR}:6:" | gpg --import-ownertrust
 
-          # Create or update mutable release
-          EXISTING=$(curl -s -H "Authorization: token $TOKEN" "$API/releases/tags/$TAG")
-          RELEASE_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+          # Export public key for users
+          gpg --export --armor "${KEY_FPR}" > repo-site/gpg_public_key.asc
 
-          if [ -z "$RELEASE_ID" ]; then
-            echo "Creating mutable release $TAG..."
-            BODY=$(printf 'Mutable APT repository for trixie.\n\nBase URL for sources.list:\n```\ndeb [trusted=yes] https://github.com/${{ github.repository }}/releases/download/trixie/ trixie main\n```')
-            PAYLOAD=$(jq -n \
-              --arg tag "$TAG" \
-              --arg name "APT Repository (mutable)" \
-              --arg body "$BODY" \
-              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
-            CREATE=$(curl -s -X POST -H "Authorization: token $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "$PAYLOAD" "$API/releases")
-            RELEASE_ID=$(echo "$CREATE" | jq -r '.id // empty')
-          else
-            echo "Updating mutable release $TAG (ID: $RELEASE_ID)..."
-            # Delete ALL existing assets
-            echo "$EXISTING" | jq -r '.assets[].id' | while read asset_id; do
-              [ -n "$asset_id" ] && curl -s -X DELETE -H "Authorization: token $TOKEN" \
-                "$API/releases/assets/$asset_id"
-            done
-          fi
+          cd repo-site/dists/${REPO_CODENAME}
+          # InRelease (clear-signed) - preferred by modern APT
+          gpg --clearsign --digest-algo SHA256 \
+            --local-user "${KEY_FPR}" \
+            --output InRelease Release
+          # Release.gpg (detached signature) - for older APT
+          gpg --armor --detach-sign \
+            --local-user "${KEY_FPR}" \
+            --output Release.gpg Release
 
-          UPLOAD_URL="https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets"
+      - name: Create index.html
+        run: |
+          cat > repo-site/index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Astroberry OS – INDI APT Repository</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 4px; }
+    pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    .btn { display: inline-block; background: #0366d6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; }
+    .btn:hover { background: #0256b3; }
+  </style>
+</head>
+<body>
+  <h1>Astroberry OS – INDI APT Repository</h1>
+  
+  <p>Oficjalne repozytorium pakietów <strong>INDI Library</strong> i sterowników 3rd-party dla dystrybucji opartej na Debianie (Trixie/Stable). Budowane automatycznie z upstreamowych tagów <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
 
-          # Upload dists/ structure
-          echo "Uploading dists/ assets..."
-          find repo/dists -type f | while IFS= read -r file; do
-            # Asset name with path preserved
-            ASSET_NAME="${file#repo/}"
-            echo "  Uploading: $ASSET_NAME"
-            curl -s -X POST -H "Authorization: token $TOKEN" \
-              -H "Content-Type: application/octet-stream" \
-              "$UPLOAD_URL?name=$ASSET_NAME" --data-binary @"$file" > /dev/null
-          done
+  <h2>🔑 Klucz GPG</h2>
+  <p>Klucz publiczny do weryfikacji podpisów repozytorium:</p>
+  <p><a href="/gpg_public_key.asc" class="btn">Pobierz klucz publiczny (ASCII armor)</a></p>
+  <pre>curl -fsSL https://jochym.github.io/astroberry-os/gpg_public_key.asc | sudo gpg --dearmor -o /usr/share/keyrings/astroberry.gpg</pre>
 
-          # Upload pool/main packages
-          echo "Uploading pool/ assets..."
-          find repo/pool/main -type f -name "*.deb" | while IFS= read -r file; do
-            ASSET_NAME="${file#repo/}"
-            echo "  Uploading: $ASSET_NAME"
-            curl -s -X POST -H "Authorization: token $TOKEN" \
-              -H "Content-Type: application/octet-stream" \
-              "$UPLOAD_URL?name=$ASSET_NAME" --data-binary @"$file" > /dev/null
-          done
+  <h2>📦 Dodawanie repozytorium</h2>
+  <p>Dodaj do <code>/etc/apt/sources.list.d/astroberry.list</code>:</p>
+  <pre>deb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main</pre>
+  <p>Lub bez weryfikacji GPG (szybciej do testów):</p>
+  <pre>deb [trusted=yes] https://jochym.github.io/astroberry-os/ stable main</pre>
+  <p>Następnie:</p>
+  <pre>sudo apt update
+sudo apt install indi-3rdparty-drivers</pre>
 
-          echo "Done. Repository available at:"
-          echo "  deb [trusted=yes] https://github.com/${{ github.repository }}/releases/download/trixie/ trixie main"
+  <h2>📋 Dostępne pakiety</h2>
+  <ul>
+    <li><strong>indi-bin</strong>, <strong>libindi1</strong>, <strong>libindi-dev</strong>, <strong>libindi-data</strong> – core INDI Library</li>
+    <li><strong>indi-3rdparty-libs</strong> – meta-pakiet bibliotek 3rd-party (Empty)</li>
+    <li><strong>indi-3rdparty-drivers</strong> – meta-pakiet wszystkich sterowników 3rd-party (poleca wszystkie <code>indi-*</code>)</li>
+    <li>Kilka dziesiątek sterowników: <code>indi-eqmod</code>, <code>indi-gphoto</code>, <code>indi-asi</code>, <code>indi-qhy</code>, <code>indi-sbig</code>, <code>indi-playerone</code> i inne</li>
+  </ul>
+  <p>Pełna lista w <a href="/dists/stable/main/binary-amd64/Packages">Packages (amd64)</a> / <a href="/dists/stable/main/binary-arm64/Packages">Packages (arm64)</a>.</p>
+
+  <h2>🏗️ Architektury</h2>
+  <p><strong>amd64</strong> (x86_64) oraz <strong>arm64</strong> (aarch64 – Raspberry Pi, Orange Pi, itp.)</p>
+
+  <h2>🔄 Aktualizacje</h2>
+  <p>Repozytorium odświeżane ręcznie przy nowych tagach upstream. Wersje zawsze synchronizowane z <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
+
+  <hr>
+  <p><small>Automatycznie budowane przez GitHub Actions. Źródła: <a href="https://github.com/indilib/indi">indilib/indi</a>, <a href="https://github.com/indilib/indi-3rdparty">indilib/indi-3rdparty</a>.</small></p>
+</body>
+</html>
+EOF
+
+      - name: Deploy to gh-pages (history pruning)
+        run: |
+          cd repo-site
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b gh-pages
+          git add .
+          git commit -m "Automated update of INDI APT repository (history pruned)"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push origin gh-pages --force
