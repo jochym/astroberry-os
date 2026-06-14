@@ -107,12 +107,16 @@ jobs:
       - name: Generate Packages for arm64
         run: |
           cd repo
+          mkdir -p dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Components
           dpkg-scanpackages --arch=arm64 pool/main /dev/null > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
           gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
 
       - name: Generate Packages for amd64
         run: |
           cd repo
+          mkdir -p dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Components
           dpkg-scanpackages --arch=amd64 pool/main /dev/null > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
           gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
 
@@ -131,11 +135,11 @@ jobs:
             echo "Date: $(date -Ru)"
             echo ""
             echo "MD5Sum:"
-            find ${REPO_COMPONENT} -type f -name "Packages*" | while read f; do
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
               echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
             done
             echo "SHA256:"
-            find ${REPO_COMPONENT} -type f -name "Packages*" | while read f; do
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
               echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
             done
           } > Release
