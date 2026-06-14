@@ -31,7 +31,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
-            dpkg-dev apt-utils git gpg curl jq ca-certificates
+            dpkg-dev apt-utils git gnupg curl jq ca-certificates
 
       - name: Configure apt for quiet mode
         run: |
