@@ -98,7 +98,7 @@ jobs:
 
           if [ -z "$RELEASE_ID" ]; then
             echo "Creating release $TAG..."
-            BODY=$(printf '## INDI Repository v%s\n\n- **Core:** v%s\n- **3rdparty:** v%s\n\nAutomated APT repository release.' \
+            BODY=$(printf '## INDI Repository v%s\n\n- **Core:** v%s\n- **3rdparty:** v%s\n\nAutomated APT repository release (full build including dbg/dbgsym).' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
               --arg tag "$TAG" \
