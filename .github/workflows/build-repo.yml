@@ -1,0 +1,131 @@
+name: Build & Deploy APT Repository
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to use (default: latest)'
+        required: false
+        default: ''
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  REPO_CODENAME: trixie
+  REPO_COMPONENT: main
+  REPO_ORIGIN: Astroberry Alt
+  REPO_LABEL: Astroberry Alt Repository
+  REPO_SUITE: stable
+
+jobs:
+  repo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Configure apt for quiet mode
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99opencode-quiet > /dev/null <<'EOF'
+          APT::Get::Quiet "2";
+          Dpkg::Progress-Fancy "0";
+          quiet "true";
+          EOF
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev jq
+
+      - name: Determine release tag
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No tag specified, finding latest release..."
+            TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+              jq -r '.tag_name // empty')
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+              echo "::error::No releases found!"
+              exit 1
+            fi
+          fi
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          echo "Using release: $TAG"
+
+      - name: Download .deb from Release
+        run: |
+          TAG="${{ env.RELEASE_TAG }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          API="https://api.github.com/repos/${{ github.repository }}"
+          DOWNLOAD_BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+
+          mkdir -p repo/pool/main
+
+          echo "Fetching assets for $TAG..."
+          ASSETS=$(curl -s -H "Authorization: token $TOKEN" \
+            "$API/releases/tags/$TAG" | jq -r '.assets[]? | .name')
+
+          COUNT=0
+          echo "$ASSETS" | while IFS= read -r asset; do
+            [ -z "$asset" ] && continue
+            echo "  Downloading: $asset"
+            curl -s -L -o "repo/pool/main/$asset" "$DOWNLOAD_BASE/$asset"
+            COUNT=$((COUNT + 1))
+          done
+
+          echo "Downloaded $COUNT packages"
+          echo "Total pool size: $(du -sh repo/pool/main | cut -f1)"
+
+      - name: Generate repository indices
+        run: |
+          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64
+          mkdir -p repo/dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64
+
+          cd repo
+
+          # Generate Packages for arm64
+          dpkg-scanpackages --arch=arm64 pool/main /dev/null \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Packages.gz
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-arm64/Components
+
+          # Generate Packages for amd64
+          dpkg-scanpackages --arch=amd64 pool/main /dev/null \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
+          gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages \
+            > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
+          echo "${REPO_COMPONENT}" > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Components
+
+      - name: Generate Release file
+        run: |
+          cd repo/dists/${REPO_CODENAME}
+          {
+            echo "Origin: ${REPO_ORIGIN}"
+            echo "Label: ${REPO_LABEL}"
+            echo "Suite: ${REPO_SUITE}"
+            echo "Codename: ${REPO_CODENAME}"
+            echo "Version: 1.0"
+            echo "Architectures: arm64 amd64"
+            echo "Components: ${REPO_COMPONENT}"
+            echo "Description: Astroberry Alt INDI repository for ${REPO_CODENAME}"
+            echo "Date: $(date -Ru)"
+            echo ""
+            echo "MD5Sum:"
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
+              echo " $(md5sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
+            done
+            echo "SHA256:"
+            find ${REPO_COMPONENT} -type f \( -name "Packages*" -o -name "Components" \) | while read f; do
+              echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c%s "$f") $f"
+            done
+          } > Release
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo
+          destination_dir: .
+          keep_files: false
