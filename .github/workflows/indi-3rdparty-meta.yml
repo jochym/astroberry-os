@@ -49,7 +49,7 @@ jobs:
           workflow_conclusion: success
           path: ./downloaded-packages
 
-      - name: Generate indi-3rdparty meta-package (${{ matrix.arch }})
+      - name: Generate meta-packages (${{ matrix.arch }})
         run: |
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
@@ -57,10 +57,25 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
-          echo "Detected package version: $VERSION"
+          EPOCHED="1:${VERSION}-meta"
+          echo "Detected package version: $EPOCHED"
 
-          mkdir -p meta-pkg/DEBIAN
+          # --- indi-3rdparty-libs: empty meta-package with no Depends ---
+          mkdir -p libs-pkg/DEBIAN
+          cat <<EOF > libs-pkg/DEBIAN/control
+          Package: indi-3rdparty-libs
+          Version: ${EPOCHED}
+          Section: misc
+          Priority: optional
+          Architecture: ${{ matrix.arch }}
+          Maintainer: Astroberry OS Build System <jochym@astroberry-os>
+          Description: INDI 3rd party libraries meta-package (${{ matrix.arch }})
+           Empty meta-package for compatibility with official repository structure.
+           Version epochs guarantee this package supersedes the official one.
+          EOF
+          dpkg-deb --build libs-pkg "./indi-3rdparty-libs_${EPOCHED}_${{ matrix.arch }}.deb"
 
+          # --- indi-3rdparty-drivers: Recommends all indi-* drivers + Depends on libs ---
           RECOMMENDS_LIST=""
           for deb in ./downloaded-packages/*.deb; do
             [ -f "$deb" ] || continue
@@ -81,15 +96,17 @@ jobs:
             exit 1
           fi
 
-          echo "Packages added to Recommends section: $RECOMMENDS_LIST"
+          echo "Packages added to Recommends: $RECOMMENDS_LIST"
 
-          cat <<EOF > meta-pkg/DEBIAN/control
-          Package: indi-3rdparty
-          Version: ${VERSION}-meta
+          mkdir -p drivers-pkg/DEBIAN
+          cat <<EOF > drivers-pkg/DEBIAN/control
+          Package: indi-3rdparty-drivers
+          Version: ${EPOCHED}
           Section: misc
           Priority: optional
           Architecture: ${{ matrix.arch }}
           Maintainer: Astroberry OS Build System <jochym@astroberry-os>
+          Depends: indi-3rdparty-libs (>= ${EPOCHED})
           Recommends: $RECOMMENDS_LIST
           Description: Meta-package for INDI 3rd party drivers (${{ matrix.arch }})
            This meta-package recommends all compiled 3rd party drivers
@@ -97,10 +114,9 @@ jobs:
            Using Recommends allows users to safely remove or replace individual
            drivers without breaking the meta-package dependency chain.
           EOF
+          dpkg-deb --build drivers-pkg "./indi-3rdparty-drivers_${EPOCHED}_${{ matrix.arch }}.deb"
 
-          dpkg-deb --build meta-pkg "./indi-3rdparty-${VERSION}-meta_${{ matrix.arch }}.deb"
-
-      - name: Upload meta-package (${{ matrix.arch }})
+      - name: Upload meta-packages (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
           name: indi-3rdparty-meta-package-${{ matrix.arch }}
