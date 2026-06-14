@@ -37,12 +37,7 @@ jobs:
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev gnupg
-
-      - name: Import GPG signing key
-        run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
-          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --export-secret-keys > /dev/null
+          sudo apt-get install -y dpkg-dev
 
       - name: Download core packages (arm64)
         uses: dawidd6/action-download-artifact@v9
@@ -121,7 +116,7 @@ jobs:
           dpkg-scanpackages --arch=amd64 pool/main /dev/null > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages
           gzip -9c dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages > dists/${REPO_CODENAME}/${REPO_COMPONENT}/binary-amd64/Packages.gz
 
-      - name: Generate and sign Release file
+      - name: Generate Release file
         run: |
           cd repo/dists/${REPO_CODENAME}
           {
@@ -140,11 +135,6 @@ jobs:
             echo "SHA256:"
             find ${REPO_COMPONENT} -type f -name "Packages*" -exec sha256sum {} \; | awk '{print " " $1 " " $2 " " $3}'
           } > Release
-
-          gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
-              --pinentry-mode loopback \
-              --detach-sign --armor \
-              -o Release.gpg Release
 
       - name: Verify repository structure
         run: |
