@@ -119,20 +119,21 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           echo "${GPG_PRIVATE_KEY}" | gpg --import --batch --yes
-          # Set ultimate trust for the imported key
-          KEY_FPR=$(gpg --list-keys --with-colons | awk -F: '/^pub:/ {print $5; exit}')
-          echo "${KEY_FPR}:6:" | gpg --import-ownertrust
+
+          # Extract full 40-char fingerprint from fpr: record
+          KEY_FPR=$(gpg --list-keys --with-colons | grep '^fpr:' | head -1 | cut -d: -f10)
+          echo "Using key fingerprint: ${KEY_FPR}"
 
           # Export public key for users
           gpg --export --armor "${KEY_FPR}" > repo-site/gpg_public_key.asc
 
           cd repo-site/dists/${REPO_CODENAME}
           # InRelease (clear-signed) - preferred by modern APT
-          gpg --clearsign --digest-algo SHA256 \
+          gpg --trust-model always --clearsign --digest-algo SHA256 \
             --local-user "${KEY_FPR}" \
             --output InRelease Release
           # Release.gpg (detached signature) - for older APT
-          gpg --armor --detach-sign \
+          gpg --trust-model always --armor --detach-sign \
             --local-user "${KEY_FPR}" \
             --output Release.gpg Release
 
