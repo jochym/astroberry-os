@@ -4,25 +4,31 @@ on:
 
 jobs:
   build-3rdparty-drivers:
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: amd64
+            runner: ubuntu-latest
+
+    runs-on: ${{ matrix.runner }}
     container: debian:trixie-slim
     steps:
       - name: Install git and dependencies
         run: |
           apt-get update -qq
           apt-get install -qq -y git ca-certificates build-essential curl jq dpkg-dev
+
       - name: Detect last release version
         run: |
-          # Automatically detect the latest version from upstream releases
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi-3rdparty/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
-          
-          # Fallback error handling
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
-          # Export variable to GITHUB_ENV to make it available for subsequent steps
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Detected package version: $VERSION"
 
@@ -38,7 +44,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: alt-indi-core.yml
-          name: indi-compiled-packages
+          name: indi-compiled-packages-${{ matrix.arch }}
           workflow_conclusion: success
           path: ./pre-built-core
 
@@ -49,31 +55,23 @@ jobs:
       - name: Build and Install All Libraries
         run: |
           cd 3rdparty
-          
-          # Inicjalizacja pliku raportu
           REPORT_FILE="failed_builds_report.md"
           echo "# INDI Build Failure Report" > $REPORT_FILE
           echo "Generated on: $(date)" >> $REPORT_FILE
           echo -e "\n| Component Type | Component Name | Failure Reason |" >> $REPORT_FILE
           echo "| --- | --- | --- |" >> $REPORT_FILE
-
           echo "========================================================="
           echo "Phase 1: Building all libraries (lib*)"
           echo "========================================================="
-
           for lib in lib* ; do
             control_file=debian/$lib/control
             [ -e "$control_file" ] || [ -e "$lib/debian/control" ] || continue
-            
             echo "---------------------------------------------------------"
             echo "Building library: $lib"
             echo "---------------------------------------------------------"
-
-            # Pobranie brakujących zależności dla biblioteki
             RAW_DEPS=$(dpkg-checkbuilddeps "$control_file" 2>&1 | \
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
-
             if [ ! -z "$RAW_DEPS" ]; then
               case "$RAW_DEPS" in
                 *błąd*|*error*|*Error*|*Błąd*)
@@ -82,12 +80,9 @@ jobs:
                   continue
                   ;;
               esac
-
               DEBS_TO_INSTALL=""
               FATAL_ERROR=0
               MISSING_PACKAGES=""
-
-              # Klasyfikacja zależności dla biblioteki
               for package in $RAW_DEPS; do
                 if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
                   DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
@@ -96,20 +91,16 @@ jobs:
                   MISSING_PACKAGES="$MISSING_PACKAGES $package"
                 fi
               done
-
               if [ "$FATAL_ERROR" -eq 1 ]; then
                 echo "::error:: Cannot build library [$lib]! Missing system packages: $MISSING_PACKAGES"
                 echo "| Library | $lib | Missing system dependencies: $MISSING_PACKAGES |" >> $REPORT_FILE
                 continue
               fi
-
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing system packages for $lib: $DEBS_TO_INSTALL"
                 apt-get install -qqy $DEBS_TO_INSTALL
               fi
             fi
-
-            # Kompilacja biblioteki
             if ./scripts/indi-3rdparty-deb.sh "$lib"; then
               echo "::notice:: Success: Library $lib built successfully."
             else
@@ -117,8 +108,6 @@ jobs:
               echo "| Library | $lib | Compilation script returned non-zero exit status |" >> $REPORT_FILE
             fi
           done
-
-          # Zbiorcza instalacja wszystkich pomyślnie zbudowanych bibliotek
           if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
             echo "Installing all newly built libraries..."
             apt-get install -y -o Dpkg::Options::="--force-overwrite" ./build/lib*.deb
@@ -130,29 +119,22 @@ jobs:
         run: |
           cd 3rdparty
           REPORT_FILE="failed_builds_report.md"
-
           echo "========================================================="
           echo "Phase 2: Building all drivers (indi-*)"
           echo "========================================================="
-
           for driver in indi-* ; do
             control_file=debian/$driver/control
             [ -e "$control_file" ] || continue
-            
             DRIVER_NAME=$driver
             echo "---------------------------------------------------------"
             echo "Analyzing driver: $DRIVER_NAME"
             echo "---------------------------------------------------------"
-            
-            # Pobranie brakujących zależności
             RAW_DEPS=$(dpkg-checkbuilddeps "$control_file" 2>&1 | \
                         sed -E 's/^.*unmet build dependencies:\s*//Ii' | \
                         sed -e 's/([^)]*)//g' -e 's/,//g')
-            
             if [ -z "$RAW_DEPS" ]; then
               echo "All dependencies for $DRIVER_NAME are satisfied."
             else
-              # Obsługa błędów dpkg
               case "$RAW_DEPS" in
                 *błąd*|*error*|*Error*|*Błąd*)
                   echo "::error:: Critical dpkg-checkbuilddeps error for $DRIVER_NAME: $RAW_DEPS"
@@ -160,41 +142,29 @@ jobs:
                   continue
                   ;;
               esac
-              
               DEBS_TO_INSTALL=""
               FATAL_ERROR=0
               MISSING_FATAL_PACKAGES=""
-
-              # Klasyfikacja zależności (tylko pod kątem obecności w Debianie,
-              # ponieważ biblioteki zostały już zbudowane i zainstalowane)
               for package in $RAW_DEPS; do
                 if apt-cache policy "$package" | grep -q "Candidate: [^ ]"; then
                   DEBS_TO_INSTALL="$DEBS_TO_INSTALL $package"
                 else
-                  # Brak pakietu w repozytorium oznacza błąd krytyczny (brak wymaganej biblioteki)
                   FATAL_ERROR=1
                   MISSING_FATAL_PACKAGES="$MISSING_FATAL_PACKAGES $package"
                 fi
               done
-
-              # Obsługa niespełnionych zależności systemowych
               if [ "$FATAL_ERROR" -eq 1 ]; then
                 echo "::error:: Cannot build driver [$DRIVER_NAME]! Missing packages: $MISSING_FATAL_PACKAGES"
                 echo "| Driver | $DRIVER_NAME | Missing dependencies (not found in repositories): $MISSING_FATAL_PACKAGES |" >> $REPORT_FILE
                 echo "Skipping driver [$DRIVER_NAME] due to unmet dependencies."
                 continue
               fi
-
-              # Instalacja pakietów z repozytoriów Debiana
               if [ ! -z "$DEBS_TO_INSTALL" ]; then
                 echo "Installing packages from Debian repository for $DRIVER_NAME: $DEBS_TO_INSTALL"
                 apt-get install -qqy $DEBS_TO_INSTALL
               fi
             fi
-
             echo "Dependencies for $DRIVER_NAME successfully resolved. Starting build process."
-            
-            # Kompilacja drivera
             if ./scripts/indi-3rdparty-deb.sh "$DRIVER_NAME"; then
               echo "::notice:: Success: Driver $DRIVER_NAME built successfully."
             else
@@ -202,14 +172,13 @@ jobs:
               echo "| Driver | $DRIVER_NAME | Driver compilation script returned non-zero exit code |" >> $REPORT_FILE
               continue
             fi
-
             echo "Procedure completed for: $DRIVER_NAME"
           done
 
       - name: Upload Compiled Debian Packages
         uses: actions/upload-artifact@v4
         with:
-          name: 3rdparty-compiled-packages
+          name: 3rdparty-compiled-packages-${{ matrix.arch }}
           path: |
             3rdparty/build/*.deb
           retention-days: 14
@@ -219,6 +188,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: failed-components-report
+          name: failed-components-report-${{ matrix.arch }}
           path: 3rdparty/failed_builds_report.md
           retention-days: 30

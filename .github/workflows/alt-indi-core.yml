@@ -5,10 +5,16 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
-
     strategy:
       fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: amd64
+            runner: ubuntu-latest
+
+    runs-on: ${{ matrix.runner }}
 
     container:
       image: debian:trixie-slim
@@ -17,15 +23,12 @@ jobs:
       - name: Install git and dependencies
         run: |
           apt-get update -qq
-          apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev git ca-certificates
+          apt-get install -qq -y git ca-certificates curl jq build-essential dpkg-dev
 
       - name: Detect last release version
         run: |
-          # Automatically detect the latest version from upstream releases
           UPSTREAM_TAG=$(curl -s https://api.github.com/repos/indilib/indi/releases/latest | jq -r .tag_name)
           VERSION=$(echo "$UPSTREAM_TAG" | sed 's/^v//')
-          
-          # Fallback error handling
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2"
             VERSION="2.2.2"
@@ -39,23 +42,21 @@ jobs:
           repository: 'indilib/indi'
           ref: refs/tags/v${{ env.VERSION }}
           path: 'indi'
+
       - name: Install build dependencies
         run: |
           apt-get build-dep -qqy ./indi
+
       - name: Build INDI Core Packages
         run: |
           indi/scripts/indi-core-deb.sh
+
       - name: Upload Compiled Debian Packages
         uses: actions/upload-artifact@v4
         with:
-          # Nazwa, pod jaką artefakt będzie widoczny w zakładce Actions
-          name: indi-compiled-packages
-          # Ścieżka do plików. Wyszuka wszystkie pliki .deb w katalogu głównym 
-          # oraz w podkatalogach (jeśli tam je przenosisz)
+          name: indi-compiled-packages-${{ matrix.arch }}
           path: |
             *.deb
             **/*.deb
-          # Opcjonalnie: czas przechowywania w dniach (nadpisuje domyślne 90 dni)
           retention-days: 14
-          # Gwarantuje, że błąd zapisu artefaktu przerwie potok i zasygnalizuje problem
           if-no-files-found: error
