@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      HAS_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY != '' }}
     container:
       image: debian:trixie-slim
     steps:
@@ -112,7 +114,7 @@ jobs:
           apt-ftparchive release -c ../apt-release.conf dists/${REPO_CODENAME} > dists/${REPO_CODENAME}/Release
 
       - name: Import GPG key and sign
-        if: env.GPG_PRIVATE_KEY != ''
+        if: env.HAS_GPG_KEY == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
@@ -136,60 +138,60 @@ jobs:
 
       - name: Create index.html
         run: |
-          cat > repo-site/index.html <<'EOF'
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Astroberry OS – INDI APT Repository</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 4px; }
-    pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
-    .btn { display: inline-block; background: #0366d6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; }
-    .btn:hover { background: #0256b3; }
-  </style>
-</head>
-<body>
-  <h1>Astroberry OS – INDI APT Repository</h1>
-  
-  <p>Oficjalne repozytorium pakietów <strong>INDI Library</strong> i sterowników 3rd-party dla dystrybucji opartej na Debianie (Trixie/Stable). Budowane automatycznie z upstreamowych tagów <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
+          cat > repo-site/index.html << 'ENDOFFILE'
+          <!DOCTYPE html>
+          <html lang="pl">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Astroberry OS – INDI APT Repository</title>
+          <style>
+            body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+            code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 4px; }
+            pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+            .btn { display: inline-block; background: #0366d6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; }
+            .btn:hover { background: #0256b3; }
+          </style>
+          </head>
+          <body>
+          <h1>Astroberry OS – INDI APT Repository</h1>
 
-  <h2>🔑 Klucz GPG</h2>
-  <p>Klucz publiczny do weryfikacji podpisów repozytorium:</p>
-  <p><a href="/gpg_public_key.asc" class="btn">Pobierz klucz publiczny (ASCII armor)</a></p>
-  <pre>curl -fsSL https://jochym.github.io/astroberry-os/gpg_public_key.asc | sudo gpg --dearmor -o /usr/share/keyrings/astroberry.gpg</pre>
+          <p>Oficjalne repozytorium pakietów <strong>INDI Library</strong> i sterowników 3rd-party dla dystrybucji opartej na Debianie (Trixie/Stable). Budowane automatycznie z upstreamowych tagów <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
 
-  <h2>📦 Dodawanie repozytorium</h2>
-  <p>Dodaj do <code>/etc/apt/sources.list.d/astroberry.list</code>:</p>
-  <pre>deb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main</pre>
-  <p>Lub bez weryfikacji GPG (szybciej do testów):</p>
-  <pre>deb [trusted=yes] https://jochym.github.io/astroberry-os/ stable main</pre>
-  <p>Następnie:</p>
-  <pre>sudo apt update
-sudo apt install indi-3rdparty-drivers</pre>
+          <h2>Klucz GPG</h2>
+          <p>Klucz publiczny do weryfikacji podpisów repozytorium:</p>
+          <p><a href="/gpg_public_key.asc" class="btn">Pobierz klucz publiczny (ASCII armor)</a></p>
+          <pre>curl -fsSL https://jochym.github.io/astroberry-os/gpg_public_key.asc | sudo gpg --dearmor -o /usr/share/keyrings/astroberry.gpg</pre>
 
-  <h2>📋 Dostępne pakiety</h2>
-  <ul>
-    <li><strong>indi-bin</strong>, <strong>libindi1</strong>, <strong>libindi-dev</strong>, <strong>libindi-data</strong> – core INDI Library</li>
-    <li><strong>indi-3rdparty-libs</strong> – meta-pakiet bibliotek 3rd-party (Empty)</li>
-    <li><strong>indi-3rdparty-drivers</strong> – meta-pakiet wszystkich sterowników 3rd-party (poleca wszystkie <code>indi-*</code>)</li>
-    <li>Kilka dziesiątek sterowników: <code>indi-eqmod</code>, <code>indi-gphoto</code>, <code>indi-asi</code>, <code>indi-qhy</code>, <code>indi-sbig</code>, <code>indi-playerone</code> i inne</li>
-  </ul>
-  <p>Pełna lista w <a href="/dists/stable/main/binary-amd64/Packages">Packages (amd64)</a> / <a href="/dists/stable/main/binary-arm64/Packages">Packages (arm64)</a>.</p>
+          <h2>Dodawanie repozytorium</h2>
+          <p>Dodaj do <code>/etc/apt/sources.list.d/astroberry.list</code>:</p>
+          <pre>deb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main</pre>
+          <p>Lub bez weryfikacji GPG (szybciej do testów):</p>
+          <pre>deb [trusted=yes] https://jochym.github.io/astroberry-os/ stable main</pre>
+          <p>Następnie:</p>
+          <pre>sudo apt update
+          sudo apt install indi-3rdparty-drivers</pre>
 
-  <h2>🏗️ Architektury</h2>
-  <p><strong>amd64</strong> (x86_64) oraz <strong>arm64</strong> (aarch64 – Raspberry Pi, Orange Pi, itp.)</p>
+          <h2>Dostępne pakiety</h2>
+          <ul>
+          <li><strong>indi-bin</strong>, <strong>libindi1</strong>, <strong>libindi-dev</strong>, <strong>libindi-data</strong> – core INDI Library</li>
+          <li><strong>indi-3rdparty-libs</strong> – meta-pakiet bibliotek 3rd-party (Empty)</li>
+          <li><strong>indi-3rdparty-drivers</strong> – meta-pakiet wszystkich sterowników 3rd-party (poleca wszystkie <code>indi-*</code>)</li>
+          <li>Kilka dziesiątek sterowników: <code>indi-eqmod</code>, <code>indi-gphoto</code>, <code>indi-asi</code>, <code>indi-qhy</code>, <code>indi-sbig</code>, <code>indi-playerone</code> i inne</li>
+          </ul>
+          <p>Pełna lista w <a href="/dists/stable/main/binary-amd64/Packages">Packages (amd64)</a> / <a href="/dists/stable/main/binary-arm64/Packages">Packages (arm64)</a>.</p>
 
-  <h2>🔄 Aktualizacje</h2>
-  <p>Repozytorium odświeżane ręcznie przy nowych tagach upstream. Wersje zawsze synchronizowane z <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
+          <h2>Architektury</h2>
+          <p><strong>amd64</strong> (x86_64) oraz <strong>arm64</strong> (aarch64 – Raspberry Pi, Orange Pi, itp.)</p>
 
-  <hr>
-  <p><small>Automatycznie budowane przez GitHub Actions. Źródła: <a href="https://github.com/indilib/indi">indilib/indi</a>, <a href="https://github.com/indilib/indi-3rdparty">indilib/indi-3rdparty</a>.</small></p>
-</body>
-</html>
-EOF
+          <h2>Aktualizacje</h2>
+          <p>Repozytorium odświeżane ręcznie przy nowych tagach upstream. Wersje zawsze synchronizowane z <code>indilib/indi</code> i <code>indilib/indi-3rdparty</code>.</p>
+
+          <hr>
+          <p><small>Automatycznie budowane przez GitHub Actions. Źródła: <a href="https://github.com/indilib/indi">indilib/indi</a>, <a href="https://github.com/indilib/indi-3rdparty">indilib/indi-3rdparty</a>.</small></p>
+          </body>
+          </html>
+          ENDOFFILE
 
       - name: Deploy to gh-pages (history pruning)
         run: |
