@@ -73,7 +73,7 @@ jobs:
            Empty meta-package for compatibility with official repository structure.
            Version epochs guarantee this package supersedes the official one.
           EOF
-          dpkg-deb --build libs-pkg "./indi-3rdparty-libs_${EPOCHED}_${{ matrix.arch }}.deb"
+          dpkg-deb --build libs-pkg "./indi-3rdparty-libs_${VERSION}-meta_${{ matrix.arch }}.deb"
 
           # --- indi-3rdparty-drivers: Recommends all indi-* drivers + Depends on libs ---
           RECOMMENDS_LIST=""
@@ -114,7 +114,7 @@ jobs:
            Using Recommends allows users to safely remove or replace individual
            drivers without breaking the meta-package dependency chain.
           EOF
-          dpkg-deb --build drivers-pkg "./indi-3rdparty-drivers_${EPOCHED}_${{ matrix.arch }}.deb"
+          dpkg-deb --build drivers-pkg "./indi-3rdparty-drivers_${VERSION}-meta_${{ matrix.arch }}.deb"
 
       - name: Upload meta-packages (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
