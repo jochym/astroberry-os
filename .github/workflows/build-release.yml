@@ -98,7 +98,7 @@ jobs:
 
           if [ -z "$RELEASE_ID" ]; then
             echo "Creating release $TAG..."
-            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architektury:** amd64, arm64\n\nAssety poniżej to pojedyncze pakiety `.deb` do bezpośredniego pobrania.\n\n**Zalecana metoda instalacji — APT repository:**\n\n```\ndeb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main\n```\n\nPełna dokumentacja: https://jochym.github.io/astroberry-os/' \
+            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**Recommended installation method — APT repository:**\n\n```\ndeb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main\n```\n\nFull documentation: https://jochym.github.io/astroberry-os/' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
               --arg tag "$TAG" \
@@ -114,7 +114,7 @@ jobs:
           else
             echo "Release $TAG already exists, ID: $RELEASE_ID"
             echo "Updating release body and name..."
-            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architektury:** amd64, arm64\n\nAssety poniżej to pojedyncze pakiety `.deb` do bezpośredniego pobrania.\n\n**Zalecana metoda instalacji — APT repository:**\n\n```\ndeb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main\n```\n\nPełna dokumentacja: https://jochym.github.io/astroberry-os/' \
+            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**Recommended installation method — APT repository:**\n\n```\ndeb [signed-by=/usr/share/keyrings/astroberry.gpg] https://jochym.github.io/astroberry-os/ stable main\n```\n\nFull documentation: https://jochym.github.io/astroberry-os/' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
               --arg name "Debian build of INDI v${RELEASE_VERSION}" \
