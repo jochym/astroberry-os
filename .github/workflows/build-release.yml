@@ -140,7 +140,7 @@ jobs:
             if [ -n "$asset_id" ]; then
               echo "  Removing old asset: $name"
               curl -s -X DELETE -H "Authorization: token $TOKEN" \
-                "$API/repos/${{ github.repository }}/releases/assets/$asset_id"
+                "$API/releases/assets/$asset_id"
             fi
             echo "  Uploading: $name"
             curl -s -X POST -H "Authorization: token $TOKEN" \
