@@ -180,7 +180,7 @@ jobs:
           <li><strong>indi-3rdparty-drivers</strong> – meta-package for all 3rd-party drivers (Recommends all <code>indi-*</code>)</li>
           <li>Several dozen drivers: <code>indi-eqmod</code>, <code>indi-gphoto</code>, <code>indi-asi</code>, <code>indi-qhy</code>, <code>indi-sbig</code>, <code>indi-playerone</code> and more</li>
           </ul>
-          <p>Full list in <a href="/dists/stable/main/binary-amd64/Packages">Packages (amd64)</a> / <a href="/dists/stable/main/binary-arm64/Packages">Packages (arm64)</a>.</p>
+          <p>Individual packages can be downloaded from the <a href="https://github.com/jochym/astroberry-os/releases/latest">GitHub Releases page</a>.</p>
 
           <h2>Architectures</h2>
           <p><strong>amd64</strong> (x86_64) and <strong>arm64</strong> (aarch64 – Raspberry Pi, Orange Pi, etc.)</p>
