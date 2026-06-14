@@ -64,7 +64,7 @@ jobs:
 
       - name: Install core packages
         run: |
-          dpkg -i --force-depends ./pre-built-core/build/*.deb
+          apt-get install -y ./pre-built-core/build/*.deb
 
       - name: Build and install all libraries
         run: |
@@ -124,7 +124,7 @@ jobs:
           done
           if [ -d "build" ] && ls build/lib*.deb >/dev/null 2>&1; then
             echo "Installing all newly built libraries..."
-            dpkg -i --force-overwrite ./build/lib*.deb
+            apt-get install -y -o Dpkg::Options::="--force-overwrite" ./build/lib*.deb
           else
             echo "No libraries were built to be installed."
           fi
