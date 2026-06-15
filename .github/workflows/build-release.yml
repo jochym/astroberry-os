@@ -2,12 +2,16 @@ name: Build & Publish Release
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [Build INDI 3rdparty Meta-Package]
+    types: [completed]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   release:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
