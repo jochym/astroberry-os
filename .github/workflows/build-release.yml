@@ -98,11 +98,11 @@ jobs:
 
           if [ -z "$RELEASE_ID" ]; then
             echo "Creating release $TAG..."
-            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**APT repository:** https://jochym.github.io/astroberry-os/' \
+            BODY=$(printf '## Community build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**APT repository (unofficial):** https://jochym.github.io/astroberry-os/' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
               --arg tag "$TAG" \
-              --arg name "Debian build of INDI v${RELEASE_VERSION}" \
+              --arg name "Community build of INDI v${RELEASE_VERSION}" \
               --arg body "$BODY" \
               '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
 
@@ -114,10 +114,10 @@ jobs:
           else
             echo "Release $TAG already exists, ID: $RELEASE_ID"
             echo "Updating release body and name..."
-            BODY=$(printf '## Debian build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**APT repository:** https://jochym.github.io/astroberry-os/' \
+            BODY=$(printf '## Community build of INDI v%s\n\n- **indi-core:** v%s\n- **indi-3rdparty:** v%s\n- **Architectures:** amd64, arm64\n\nAssets below are individual `.deb` packages for direct download.\n\n**APT repository (unofficial):** https://jochym.github.io/astroberry-os/' \
               "$RELEASE_VERSION" "$CORE_VERSION" "$THIRD_VERSION")
             PAYLOAD=$(jq -n \
-              --arg name "Debian build of INDI v${RELEASE_VERSION}" \
+              --arg name "Community build of INDI v${RELEASE_VERSION}" \
               --arg body "$BODY" \
               '{name: $name, body: $body}')
             curl -s -X PATCH -H "Authorization: token $TOKEN" \

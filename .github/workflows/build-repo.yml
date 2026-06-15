@@ -145,7 +145,7 @@ jobs:
           <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Astroberry OS – INDI APT Repository</title>
+          <title>INDI APT Repository (unofficial)</title>
           <style>
             body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
             code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 4px; }
@@ -155,9 +155,10 @@ jobs:
           </style>
           </head>
           <body>
-          <h1>Astroberry OS – INDI APT Repository</h1>
+          <h1>INDI APT Repository (unofficial)</h1>
 
-          <p>Official repository for <strong>INDI Library</strong> and 3rd-party drivers, built for Debian-based distributions (Trixie/Stable). Automatically built from upstream tags at <code>indilib/indi</code> and <code>indilib/indi-3rdparty</code>.</p>
+          <p>Community-maintained repository for <strong>INDI Library</strong> and 3rd-party drivers, built for Debian-based distributions (Trixie/Stable). Automatically built from upstream tags at <code>indilib/indi</code> and <code>indilib/indi-3rdparty</code>.</p>
+          <p><strong>Note:</strong> This is an independent, unofficial repository with no affiliation to the astroberry project or the upstream INDI organization.</p>
 
           <h2>GPG Key</h2>
           <p>Public key for verifying repository signatures:</p>

@@ -66,8 +66,8 @@ jobs:
           Architecture: ${{ matrix.arch }}
           Maintainer: Astroberry OS Build System <jochym@astroberry-os>
           Description: INDI 3rd party libraries meta-package (${{ matrix.arch }})
-           Empty meta-package for compatibility with official repository structure.
-           Version epochs guarantee this package supersedes the official one.
+            Empty meta-package for compatibility with astroberry-OS repository structure.
+            Version epochs guarantee this package supersedes the astroberry-OS one.
           EOF
           dpkg-deb --build libs-pkg "./indi-3rdparty-libs_${VERSION}-meta_${{ matrix.arch }}.deb"
 
