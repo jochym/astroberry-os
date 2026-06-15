@@ -65,8 +65,7 @@ jobs:
 
       - name: Inject build version into changelog
         run: |
-          BUILD_ID=$(cd indi && git describe --always)
-          BUILD_TAG=$(date +%Y%m%d)-${BUILD_ID}
+          BUILD_TAG=$(date +%Y%m%d)-r${{ github.run_number }}
           sed -i "1s/)/+ab${BUILD_TAG})/" indi/debian/changelog
           echo "Patched: $(head -1 indi/debian/changelog)"
 

@@ -72,8 +72,7 @@ jobs:
 
       - name: Inject build version into driver changelogs
         run: |
-          BUILD_ID=$(cd 3rdparty && git describe --always)
-          BUILD_TAG=$(date +%Y%m%d)-${BUILD_ID}
+          BUILD_TAG=$(date +%Y%m%d)-r${{ github.run_number }}
           for cl in 3rdparty/debian/*/changelog; do
             [ -f "$cl" ] || continue
             sed -i "1s/)/+ab${BUILD_TAG})/" "$cl"

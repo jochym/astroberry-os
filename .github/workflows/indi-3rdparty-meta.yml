@@ -56,7 +56,7 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
-          BUILD_TAG=$(date +%Y%m%d)
+          BUILD_TAG=$(date +%Y%m%d)-r${{ github.run_number }}
           EPOCHED="1:${VERSION}-meta+ab${BUILD_TAG}"
           echo "Detected package version: $EPOCHED"
 
