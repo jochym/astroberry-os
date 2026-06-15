@@ -135,23 +135,23 @@ jobs:
           UPLOAD="https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.RELEASE_ID }}/assets"
           TOKEN="${{ secrets.GITHUB_TOKEN }}"
 
-          echo "Fetching existing assets..."
+          echo "Removing all existing assets..."
           curl -s -H "Authorization: token $TOKEN" \
             "$API/releases/${{ env.RELEASE_ID }}/assets" | \
-            jq -r '.[] | "\(.id) \(.name)"' > /tmp/existing_assets.txt
+            jq -r '.[] | "\(.id) \(.name)"' | \
+            while read -r id name; do
+              echo "  Removing: $name"
+              curl -s -X DELETE -H "Authorization: token $TOKEN" \
+                "$API/releases/assets/$id" > /dev/null
+            done
 
+          echo "Uploading packages in alphabetical order..."
           find ./artifacts -name "*.deb" -print0 | sort -z | while IFS= read -r -d '' deb; do
             name=$(basename "$deb")
             # Skip dbg and dbgsym packages
             if [[ "$name" =~ (-dbg|-dbgsym)_ ]]; then
               echo "  Skipping: $name (debug package)"
               continue
-            fi
-            asset_id=$(awk -v n="$name" '$2 == n {print $1}' /tmp/existing_assets.txt)
-            if [ -n "$asset_id" ]; then
-              echo "  Removing old asset: $name"
-              curl -s -X DELETE -H "Authorization: token $TOKEN" \
-                "$API/releases/assets/$asset_id"
             fi
             echo "  Uploading: $name"
             curl -s -X POST -H "Authorization: token $TOKEN" \
