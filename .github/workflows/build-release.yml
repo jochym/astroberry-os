@@ -140,7 +140,7 @@ jobs:
             "$API/releases/${{ env.RELEASE_ID }}/assets" | \
             jq -r '.[] | "\(.id) \(.name)"' > /tmp/existing_assets.txt
 
-          find ./artifacts -name "*.deb" -print0 | while IFS= read -r -d '' deb; do
+          find ./artifacts -name "*.deb" -print0 | sort -z | while IFS= read -r -d '' deb; do
             name=$(basename "$deb")
             # Skip dbg and dbgsym packages
             if [[ "$name" =~ (-dbg|-dbgsym)_ ]]; then
