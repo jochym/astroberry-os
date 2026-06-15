@@ -1,0 +1,42 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Architectures: arm64 amd64
+Codename: stable
+Components: main
+Date: Mon, 15 Jun 2026 10:33:06 +0000
+Description: Astroberry Alt INDI repository for Debian stable
+Label: Astroberry INDI Repository
+Origin: Astroberry OS
+Suite: stable
+MD5Sum:
+ a50c0d6a5a77469ad24ce254fabbaf5a              231 Release
+ f32cb60b3a7282d27b13dc297b622b22           144337 main/binary-amd64/Packages
+ 2a882700a228e1d247ea2bf4e632d6e7            40466 main/binary-amd64/Packages.gz
+ f32cb60b3a7282d27b13dc297b622b22           144337 main/binary-arm64/Packages
+ 50922a38249d754266978d5fb80d247f            40466 main/binary-arm64/Packages.gz
+SHA1:
+ 1283ec83ca72e9fd1ec202c364c66858884728ef              231 Release
+ 505fa7470ef985bcff1c8fe34ad6c3503a64aa7f           144337 main/binary-amd64/Packages
+ d5b8958e068d40192384ae44f37d636dad8c2755            40466 main/binary-amd64/Packages.gz
+ 505fa7470ef985bcff1c8fe34ad6c3503a64aa7f           144337 main/binary-arm64/Packages
+ 46ec27d2e676f09aa780b59beee0a46ca88ce959            40466 main/binary-arm64/Packages.gz
+SHA256:
+ b678e5a22acdd3a8f5a2e894f6e2dffbdc590c112726f98ad150c641cf3309d6              231 Release
+ 73b8274ed048212856556dc95ac643eb1a2bce34a7fcdd1332bbf474a541ac0b           144337 main/binary-amd64/Packages
+ 85faa24765cdb75c22ee1bbd2075e77c89c691034a5d15182a138f4e31d516f5            40466 main/binary-amd64/Packages.gz
+ 73b8274ed048212856556dc95ac643eb1a2bce34a7fcdd1332bbf474a541ac0b           144337 main/binary-arm64/Packages
+ a7009cbd0efaad1719d7e5fa9049fb39917843bcf9c11475b378732d557713e0            40466 main/binary-arm64/Packages.gz
+SHA512:
+ cb4e31459b29596124aeb2c2b5e1d6039133d687cb8ebd021f3b648380e19787a90a100b7ff542bcb24bd6a91e1337e0884e9174e3da4e282dfb6b22a4825111              231 Release
+ 00a7235286301b507912d1cefa23c8f93d2549913c4f618fd54948da4b9ed981b3fcd3faa2e7fc7c7a850edfeb2c3396cb939b02e671d90fa21b026106a43ccf           144337 main/binary-amd64/Packages
+ 0316f7559cd86f2aaef8f8be885bf5a1bc930f8e21d46902a62a7ebb93845f33be79f775b2337acf7ddffb6baf30ac4daf046f5b6b9a9106bd43b648ebb58595            40466 main/binary-amd64/Packages.gz
+ 00a7235286301b507912d1cefa23c8f93d2549913c4f618fd54948da4b9ed981b3fcd3faa2e7fc7c7a850edfeb2c3396cb939b02e671d90fa21b026106a43ccf           144337 main/binary-arm64/Packages
+ e2a8ea11a3bf901b9eb5a6cfcb0c2bc36f3a419d6c1d89a361df74ab154d39d7f13ea1e6129c28e3f04e703ea9df92a8747f44f9062c3cd79bb21753f4f77e2d            40466 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYIAB0WIQQL2cCX5cbMGwXAf8jk1MJQEYYsWAUCai/U4gAKCRDk1MJQEYYs
+WGI4AQDfiVsUtJxpjiKFkoaHkAijF1tuMnMXR5+o4aBPnq9XfwEAgA2OnGAk0rGd
+qSu3kETMQyfHAFHpUXRGejPuSBto+wE=
+=qBvi
+-----END PGP SIGNATURE-----
