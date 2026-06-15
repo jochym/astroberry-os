@@ -164,3 +164,9 @@ jobs:
               -H "Content-Type: application/octet-stream" \
               "$UPLOAD?name=$name" --data-binary "@$deb" > /dev/null
           done
+
+      - name: Trigger APT repository rebuild
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-repo.yml --ref "${{ github.ref_name }}"
