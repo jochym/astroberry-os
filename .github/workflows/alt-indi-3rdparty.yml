@@ -70,6 +70,15 @@ jobs:
         run: |
           apt-get install -y ./pre-built-core/build/*.deb
 
+      - name: Inject build version into driver changelogs
+        run: |
+          BUILD_TAG=$(date +%Y%m%d)-r${{ github.run_number }}
+          for cl in 3rdparty/debian/*/changelog; do
+            [ -f "$cl" ] || continue
+            sed -i "1s/)/+ab${BUILD_TAG})/" "$cl"
+          done
+          echo "Patched changelogs with +ab${BUILD_TAG}"
+
       - name: Build and install all libraries
         run: |
           exec 3>&1 4>&2

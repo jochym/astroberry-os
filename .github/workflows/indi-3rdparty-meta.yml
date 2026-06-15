@@ -56,7 +56,8 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
-          EPOCHED="1:${VERSION}-meta"
+          BUILD_TAG=$(date +%Y%m%d)
+          EPOCHED="1:${VERSION}-meta+${BUILD_TAG}"
           echo "Detected package version: $EPOCHED"
 
           # --- indi-3rdparty-libs: empty meta-package with no Depends ---

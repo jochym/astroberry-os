@@ -63,6 +63,12 @@ jobs:
         run: |
           apt-get build-dep -y ./indi
 
+      - name: Inject build version into changelog
+        run: |
+          BUILD_TAG=$(date +%Y%m%d)-r${{ github.run_number }}
+          sed -i "1s/)/+ab${BUILD_TAG})/" indi/debian/changelog
+          echo "Patched: $(head -1 indi/debian/changelog)"
+
       - name: Build INDI core packages
         run: |
           exec 3>&1 4>&2
