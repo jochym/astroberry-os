@@ -56,8 +56,10 @@ jobs:
             echo "Failed to fetch version from GitHub API. Using default version: 2.2.2.1"
             VERSION="2.2.2.1"
           fi
-          BUILD_TAG=$(date +%Y%m%d)
-          EPOCHED="1:${VERSION}-meta+${BUILD_TAG}"
+          GIT_HASH=$(for deb in ./downloaded-packages/*.deb; do [ -f "$deb" ] || continue; dpkg-deb -f "$deb" Version 2>/dev/null | grep -oP '\+ab\d{8}-\K\w+' | head -1; done)
+          GIT_HASH="${GIT_HASH:-unknown}"
+          BUILD_TAG=$(date +%Y%m%d)-${GIT_HASH}
+          EPOCHED="1:${VERSION}-meta+ab${BUILD_TAG}"
           echo "Detected package version: $EPOCHED"
 
           # --- indi-3rdparty-libs: empty meta-package with no Depends ---
